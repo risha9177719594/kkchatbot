@@ -6,6 +6,7 @@ const config = {
   theme: urlParams.get('theme') || 'light',
   welcomeMessage: urlParams.get('welcome') || 'Hello! How can I help you today?',
   avatarUrl: urlParams.get('avatar') || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+  n8nUrl: urlParams.get('n8nUrl') || '',
   quickReplies: urlParams.get('quick') ? JSON.parse(urlParams.get('quick')) : [
     "What are your features?",
     "Tell me about pricing",
@@ -184,26 +185,87 @@ function handleUserSendMessage(text) {
   triggerBotResponse(text);
 }
 
-// Simulated Bot Reply Logic
+// Session Identifier helper to allow conversational memory in backends like n8n
+function getSessionId() {
+  let sessionId = localStorage.getItem('kartabot-session-id');
+  if (!sessionId) {
+    sessionId = 'session_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('kartabot-session-id', sessionId);
+  }
+  return sessionId;
+}
+
+// Bot Reply Logic (Simulated local engine or real n8n webhook connection)
 function triggerBotResponse(userMessage) {
   setTyping(true);
   
-  // Calculate dynamic typing delay depending on length of message
-  const reply = getMockReply(userMessage);
-  const typingDelay = Math.max(1000, Math.min(2500, reply.length * 15));
-  
-  setTimeout(() => {
-    setTyping(false);
-    addMessage(reply, 'bot');
-    
-    // Restore or provide fresh quick replies based on context
-    setTimeout(() => {
-      const freshQuickReplies = getSuggestedQuestions(userMessage);
-      if (freshQuickReplies && freshQuickReplies.length > 0) {
-        renderQuickReplies(freshQuickReplies);
+  // If n8n URL is provided, send the message to n8n Webhook
+  if (config.n8nUrl) {
+    fetch(config.n8nUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        botName: config.botName,
+        sessionId: getSessionId(),
+        timestamp: new Date().toISOString()
+      })
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`n8n responded with status ${response.status}`);
       }
-    }, 400);
-  }, typingDelay);
+      return response.json();
+    })
+    .then(data => {
+      setTyping(false);
+      
+      // Look for standard response keys from n8n response object
+      const reply = data.reply || data.response || data.output || data.text || (typeof data === 'string' ? data : '');
+      if (reply) {
+        addMessage(reply, 'bot');
+      } else {
+        addMessage("Received response from n8n, but no text was found in standard JSON fields (`response`, `output`, `reply`, `text`).", 'bot');
+      }
+      
+      // Update quick suggestion questions if n8n returns them, otherwise fall back to suggested ones
+      if (data.quickReplies && Array.isArray(data.quickReplies)) {
+        renderQuickReplies(data.quickReplies);
+      } else {
+        setTimeout(() => {
+          renderQuickReplies(getSuggestedQuestions(userMessage));
+        }, 400);
+      }
+    })
+    .catch(error => {
+      console.error('KartaBot n8n Connection Error:', error);
+      setTyping(false);
+      addMessage("⚠️ **Connection Error**: I could not reach my n8n backend. Please verify your Webhook URL and ensure that CORS is enabled on your n8n instance.", 'bot');
+      
+      setTimeout(() => {
+        renderQuickReplies(["Retry message", "What are your features?", "Tell me about pricing"]);
+      }, 400);
+    });
+  } else {
+    // Fallback: Calculate dynamic typing delay depending on length of local mock message
+    const reply = getMockReply(userMessage);
+    const typingDelay = Math.max(1000, Math.min(2500, reply.length * 12));
+    
+    setTimeout(() => {
+      setTyping(false);
+      addMessage(reply, 'bot');
+      
+      // Restore or provide fresh quick replies based on context
+      setTimeout(() => {
+        const freshQuickReplies = getSuggestedQuestions(userMessage);
+        if (freshQuickReplies && freshQuickReplies.length > 0) {
+          renderQuickReplies(freshQuickReplies);
+        }
+      }, 400);
+    }, typingDelay);
+  }
 }
 
 // Basic Rule-based Conversation Engine

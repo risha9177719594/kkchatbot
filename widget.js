@@ -31,6 +31,7 @@
   const welcomeMessage = currentScript ? (currentScript.getAttribute('data-welcome') || 'Hello! How can I help you today?') : 'Hello! How can I help you today?';
   const avatarUrl = currentScript ? (currentScript.getAttribute('data-avatar') || '') : '';
   const position = currentScript ? (currentScript.getAttribute('data-position') || 'right') : 'right';
+  const n8nUrl = currentScript ? (currentScript.getAttribute('data-n8n-url') || '') : '';
 
   // Resolve widget directory to load widget-ui.html relative to this script
   let baseUrl = '';
@@ -58,6 +59,7 @@
     welcome: welcomeMessage,
   });
   if (avatarUrl) queryParams.set('avatar', avatarUrl);
+  if (n8nUrl) queryParams.set('n8nUrl', n8nUrl);
   
   const finalIframeUrl = `${widgetUiUrl}?${queryParams.toString()}`;
 
