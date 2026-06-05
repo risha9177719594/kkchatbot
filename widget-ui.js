@@ -1,5 +1,19 @@
 // Configurations passed via URL query parameters
 const urlParams = new URLSearchParams(window.location.search);
+
+// Parse custom suggestions if passed as a comma-separated list
+const getCustomSuggestions = () => {
+  const suggestionsParam = urlParams.get('suggestions');
+  if (suggestionsParam) {
+    return suggestionsParam.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [
+    "What are your features?",
+    "Tell me about pricing",
+    "How do I embed this widget?"
+  ];
+};
+
 const config = {
   botName: urlParams.get('botName') || 'KartaBot',
   color: urlParams.get('color') || '#6366f1',
@@ -7,11 +21,7 @@ const config = {
   welcomeMessage: urlParams.get('welcome') || 'Hello! How can I help you today?',
   avatarUrl: urlParams.get('avatar') || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
   n8nUrl: urlParams.get('n8nUrl') || 'https://n8n.srv1175271.hstgr.cloud/webhook/VelBot',
-  quickReplies: urlParams.get('quick') ? JSON.parse(urlParams.get('quick')) : [
-    "What are your features?",
-    "Tell me about pricing",
-    "How do I embed this widget?"
-  ]
+  quickReplies: getCustomSuggestions()
 };
 
 // Selectors
@@ -312,8 +322,8 @@ function getSuggestedQuestions(lastUserMessage) {
   if (contains(text, ['feature', 'what can you do'])) {
     return ["How do I embed this?", "Get support contact"];
   }
-  // Default fallback questions
-  return ["What are your features?", "Tell me about pricing", "Get support contact"];
+  // Default fallback questions (uses user-defined suggestions)
+  return config.quickReplies;
 }
 
 // Helper to check if keyword exists in text

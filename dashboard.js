@@ -2,6 +2,7 @@
 const botNameInput = document.getElementById('input-bot-name');
 const welcomeInput = document.getElementById('input-welcome');
 const n8nUrlInput = document.getElementById('input-n8n-url');
+const suggestionsInput = document.getElementById('input-suggestions');
 const colorPicker = document.getElementById('input-color-picker');
 const colorHexText = document.getElementById('color-hex-val');
 const themeButtons = document.querySelectorAll('.theme-btn');
@@ -27,6 +28,7 @@ function setupEventListeners() {
   botNameInput.addEventListener('input', debounce(updateWidget, 300));
   welcomeInput.addEventListener('input', debounce(updateWidget, 300));
   n8nUrlInput.addEventListener('input', debounce(updateWidget, 300));
+  suggestionsInput.addEventListener('input', debounce(updateWidget, 300));
   positionSelect.addEventListener('change', updateWidget);
 
   // Color picker change
@@ -82,6 +84,7 @@ function generateSnippetText(config) {
     : 'https://cdn.krutrimkarta.com';
 
   const n8nAttr = config.n8nUrl ? `\n  data-n8n-url="${escapeHtml(config.n8nUrl)}"` : '';
+  const suggestionsAttr = config.suggestions ? `\n  data-suggestions="${escapeHtml(config.suggestions)}"` : '';
 
   return `<!-- KartaBot Chatbot Widget Integration -->
 <script
@@ -91,7 +94,7 @@ function generateSnippetText(config) {
   data-color="${config.color}"
   data-theme="${config.theme}"
   data-welcome="${escapeHtml(config.welcome)}"
-  data-position="${config.position}"${n8nAttr}
+  data-position="${config.position}"${n8nAttr}${suggestionsAttr}
   defer>
 </script>`;
 }
@@ -102,6 +105,7 @@ function updateWidget() {
     botName: botNameInput.value.trim() || 'KartaBot',
     welcome: welcomeInput.value.trim() || 'Hello! How can I help you today?',
     n8nUrl: n8nUrlInput.value.trim(),
+    suggestions: suggestionsInput.value.trim(),
     color: activeColor,
     theme: activeTheme,
     position: positionSelect.value
@@ -142,6 +146,9 @@ function updateWidget() {
   script.setAttribute('data-position', config.position);
   if (config.n8nUrl) {
     script.setAttribute('data-n8n-url', config.n8nUrl);
+  }
+  if (config.suggestions) {
+    script.setAttribute('data-suggestions', config.suggestions);
   }
   script.defer = true;
 

@@ -32,6 +32,7 @@
   const avatarUrl = currentScript ? (currentScript.getAttribute('data-avatar') || '') : '';
   const position = currentScript ? (currentScript.getAttribute('data-position') || 'right') : 'right';
   const n8nUrl = currentScript ? (currentScript.getAttribute('data-n8n-url') || '') : '';
+  const suggestions = currentScript ? (currentScript.getAttribute('data-suggestions') || '') : '';
 
   // Resolve widget directory to load widget-ui.html relative to this script
   let baseUrl = '';
@@ -60,6 +61,7 @@
   });
   if (avatarUrl) queryParams.set('avatar', avatarUrl);
   if (n8nUrl) queryParams.set('n8nUrl', n8nUrl);
+  if (suggestions) queryParams.set('suggestions', suggestions);
   
   const finalIframeUrl = `${widgetUiUrl}?${queryParams.toString()}`;
 
