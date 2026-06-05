@@ -312,6 +312,18 @@ function getMockReply(msg) {
 
 // Generate contextual quick suggestion questions
 function getSuggestedQuestions(lastUserMessage) {
+  // Check if suggestions have been customized by the user
+  const defaultSuggestions = [
+    "What are your features?",
+    "Tell me about pricing",
+    "How do I embed this widget?"
+  ];
+  const isCustomized = JSON.stringify(config.quickReplies.map(s => s.trim())) !== JSON.stringify(defaultSuggestions);
+  
+  if (isCustomized) {
+    return config.quickReplies;
+  }
+
   const text = lastUserMessage.toLowerCase();
   if (contains(text, ['hi', 'hello', 'hey'])) {
     return ["What are your features?", "Tell me about pricing"];
