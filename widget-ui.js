@@ -6,7 +6,7 @@ const config = {
   theme: urlParams.get('theme') || 'light',
   welcomeMessage: urlParams.get('welcome') || 'Hello! How can I help you today?',
   avatarUrl: urlParams.get('avatar') || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
-  n8nUrl: urlParams.get('n8nUrl') || '',
+  n8nUrl: urlParams.get('n8nUrl') || 'https://n8n.srv1175271.hstgr.cloud/webhook/VelBot',
   quickReplies: urlParams.get('quick') ? JSON.parse(urlParams.get('quick')) : [
     "What are your features?",
     "Tell me about pricing",
