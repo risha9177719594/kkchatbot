@@ -74,9 +74,14 @@ function setupEventListeners() {
 
 // Generate Embed Code Text
 function generateSnippetText(config) {
+  // Use the current origin where dashboard is served, falling back to a sample URL
+  const scriptOrigin = window.location.origin.startsWith('http') 
+    ? window.location.origin 
+    : 'https://cdn.krutrimkarta.com';
+
   return `<!-- KartaBot Chatbot Widget Integration -->
 <script
-  src="https://cdn.krutrimkarta.com/widget.js"
+  src="${scriptOrigin}/widget.js"
   id="kartabot-widget-script"
   data-bot-name="${escapeHtml(config.botName)}"
   data-color="${config.color}"

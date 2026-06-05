@@ -1,25 +1,52 @@
 (function () {
-  // Prevent duplicate script execution
-  if (window.KartaBotWidgetInitialized) return;
-  window.KartaBotWidgetInitialized = true;
-
   // Retrieve script configuration
-  const currentScript = document.currentScript;
-  const botName = currentScript.getAttribute('data-bot-name') || 'KartaBot';
-  const accentColor = currentScript.getAttribute('data-color') || '#6366f1';
-  const theme = currentScript.getAttribute('data-theme') || 'light';
-  const welcomeMessage = currentScript.getAttribute('data-welcome') || 'Hello! How can I help you today?';
-  const avatarUrl = currentScript.getAttribute('data-avatar') || '';
-  const position = currentScript.getAttribute('data-position') || 'right'; // 'left' or 'right'
+  let currentScript = document.currentScript;
+  if (!currentScript) {
+    currentScript = document.getElementById('kartabot-widget-script') || 
+                    document.getElementById('kartabot-preview-script');
+  }
+  if (!currentScript) {
+    // Search for any script tag containing 'widget.js' in its src
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      const src = scripts[i].getAttribute('src') || '';
+      if (src && (src.includes('widget.js') || scripts[i].id.includes('kartabot'))) {
+        currentScript = scripts[i];
+        break;
+      }
+    }
+  }
+
+  // Prevent duplicate script execution (skip for live preview in dashboard console)
+  const isPreview = currentScript && currentScript.id === 'kartabot-preview-script';
+  if (!isPreview) {
+    if (window.KartaBotWidgetInitialized) return;
+    window.KartaBotWidgetInitialized = true;
+  }
+
+  // Fallback defaults if no script tag is resolved
+  const botName = currentScript ? (currentScript.getAttribute('data-bot-name') || 'KartaBot') : 'KartaBot';
+  const accentColor = currentScript ? (currentScript.getAttribute('data-color') || '#6366f1') : '#6366f1';
+  const theme = currentScript ? (currentScript.getAttribute('data-theme') || 'light') : 'light';
+  const welcomeMessage = currentScript ? (currentScript.getAttribute('data-welcome') || 'Hello! How can I help you today?') : 'Hello! How can I help you today?';
+  const avatarUrl = currentScript ? (currentScript.getAttribute('data-avatar') || '') : '';
+  const position = currentScript ? (currentScript.getAttribute('data-position') || 'right') : 'right';
 
   // Resolve widget directory to load widget-ui.html relative to this script
   let baseUrl = '';
   try {
-    const scriptSrc = currentScript.src;
-    const url = new URL(scriptSrc);
-    baseUrl = url.origin + url.pathname.substring(0, url.pathname.lastIndexOf('/'));
+    if (currentScript && currentScript.src) {
+      const scriptSrc = currentScript.src;
+      const url = new URL(scriptSrc);
+      baseUrl = url.origin + url.pathname.substring(0, url.pathname.lastIndexOf('/'));
+    }
   } catch (e) {
     console.error('KartaBot: Error resolving script path. Using relative path.', e);
+  }
+
+  // If baseUrl couldn't be resolved or is empty, use the current document origin
+  if (!baseUrl) {
+    baseUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
   }
   const widgetUiUrl = `${baseUrl}/widget-ui.html`;
 
