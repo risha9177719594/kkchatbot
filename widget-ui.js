@@ -437,7 +437,7 @@ function renderLeadFormCard(source) {
     ${avatarHtml}
     <div class="message-bubble-wrapper" style="width: 100%; max-width: 300px;">
       <div class="lead-form-card">
-        <h4>📩 Lead Information</h4>
+        <h4>📩 Share Your Details</h4>
         <p>${introText}</p>
         <form id="${formId}" style="display: flex; flex-direction: column; gap: 10px;">
           <div class="lead-input-group">
@@ -482,29 +482,62 @@ function renderLeadFormCard(source) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
     
-    // Post message to parent window
-    try {
-      window.parent.postMessage({ type: 'kartabot-lead-captured', lead: leadData }, '*');
-    } catch (err) {
-      console.error("Failed to postMessage lead data to parent window", err);
+    // Post to Webhook if available
+    let postPromise = Promise.resolve();
+    if (config.n8nUrl) {
+      postPromise = fetch(config.n8nUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event: 'lead_captured',
+          lead: leadData,
+          sessionId: getSessionId(),
+          timestamp: new Date().toISOString()
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Webhook responded with status ${response.status}`);
+        }
+        return response;
+      });
     }
-    
-    setTimeout(() => {
-      const card = form.closest('.lead-form-card');
-      card.innerHTML = `
-        <div class="lead-success-state">
-          <div class="lead-success-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h4>Details Saved!</h4>
-          <p>Thank you, <strong>${escapeHtml(nameVal)}</strong>. An agent will contact you soon!</p>
-        </div>
-      `;
-      leadFormActive = false;
-      scrollToBottom();
-    }, 800);
+
+    postPromise
+      .then(() => {
+        // Post message to parent window (for live preview dashboard UI updates in-memory)
+        try {
+          window.parent.postMessage({ type: 'kartabot-lead-captured', lead: leadData }, '*');
+        } catch (err) {
+          console.error("Failed to postMessage lead data to parent window", err);
+        }
+        
+        setTimeout(() => {
+          const card = form.closest('.lead-form-card');
+          card.innerHTML = `
+            <div class="lead-success-state">
+              <div class="lead-success-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h4>Details Saved!</h4>
+              <p>Thank you, <strong>${escapeHtml(nameVal)}</strong>. An agent will contact you soon!</p>
+            </div>
+          `;
+          leadFormActive = false;
+          scrollToBottom();
+        }, 800);
+      })
+      .catch(error => {
+        console.error("Failed to post lead to webhook:", error);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Details';
+        form.querySelectorAll('input').forEach(input => input.disabled = false);
+        alert("Failed to submit details to webhook. Please check connection and try again.");
+      });
   });
 }
 

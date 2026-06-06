@@ -257,18 +257,17 @@ window.addEventListener('message', (event) => {
   }
 });
 
+let sessionLeads = [];
+
 function getLeads() {
-  const leadsJson = localStorage.getItem('kartabot-dashboard-leads');
-  return leadsJson ? JSON.parse(leadsJson) : [];
+  return sessionLeads;
 }
 
 function saveLead(lead) {
-  const leads = getLeads();
   // Prevent duplicate lead save
-  if (leads.some(l => l.id === lead.id)) return;
+  if (sessionLeads.some(l => l.id === lead.id)) return;
   
-  leads.unshift(lead); // Put newest lead first
-  localStorage.setItem('kartabot-dashboard-leads', JSON.stringify(leads));
+  sessionLeads.unshift(lead); // Put newest lead first
   
   updateLeadsBadge();
   
@@ -280,9 +279,7 @@ function saveLead(lead) {
 }
 
 function deleteLead(id) {
-  let leads = getLeads();
-  leads = leads.filter(l => l.id !== id);
-  localStorage.setItem('kartabot-dashboard-leads', JSON.stringify(leads));
+  sessionLeads = sessionLeads.filter(l => l.id !== id);
   
   updateLeadsBadge();
   renderLeadsTable();
