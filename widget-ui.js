@@ -24,6 +24,9 @@ const config = {
   quickReplies: getCustomSuggestions()
 };
 
+let leadFormActive = false;
+
+
 // Selectors
 const chatContainer = document.querySelector('.chat-container');
 const botNameDisplay = document.getElementById('bot-name-display');
@@ -209,6 +212,17 @@ function getSessionId() {
 function triggerBotResponse(userMessage) {
   setTyping(true);
   
+  const lowerMsg = userMessage.toLowerCase();
+  const isPriceQuery = contains(lowerMsg, ['price', 'pricing', 'cost', 'subscription', 'rates', 'plan', 'plans', 'payment', 'charge']);
+  const isAgentQuery = contains(lowerMsg, ['agent', 'human', 'support', 'contact', 'representative', 'person', 'live chat', 'talk to agent', 'speak to agent', 'email', 'help']);
+  
+  let shouldCaptureLead = null;
+  if (isAgentQuery) {
+    shouldCaptureLead = 'agent';
+  } else if (isPriceQuery) {
+    shouldCaptureLead = 'price';
+  }
+  
   // If n8n URL is provided, send the message to n8n Webhook
   if (config.n8nUrl) {
     fetch(config.n8nUrl, {
@@ -248,15 +262,22 @@ function triggerBotResponse(userMessage) {
           renderQuickReplies(getSuggestedQuestions(userMessage));
         }, 400);
       }
+
+      // Capture lead if pricing or agent queries were detected
+      if (shouldCaptureLead) {
+        setTimeout(() => {
+          renderLeadFormCard(shouldCaptureLead);
+        }, 1200);
+      }
     })
     .catch(error => {
       console.error('KartaBot n8n Connection Error:', error);
       setTyping(false);
-      addMessage("⚠️ **Connection Error**: I could not reach my n8n backend. Please verify your Webhook URL and ensure that CORS is enabled on your n8n instance.", 'bot');
+      addMessage("⚠️ **Connection Error**: I could not reach my backend server. Please verify your Webhook URL and ensure that CORS is enabled.", 'bot');
       
       setTimeout(() => {
-        renderQuickReplies(["Retry message", "What are your features?", "Tell me about pricing"]);
-      }, 400);
+        renderLeadFormCard('webhook_failure');
+      }, 1000);
     });
   } else {
     // Fallback: Calculate dynamic typing delay depending on length of local mock message
@@ -274,6 +295,13 @@ function triggerBotResponse(userMessage) {
           renderQuickReplies(freshQuickReplies);
         }
       }, 400);
+
+      // Capture lead if pricing or agent queries were detected
+      if (shouldCaptureLead) {
+        setTimeout(() => {
+          renderLeadFormCard(shouldCaptureLead);
+        }, 1200);
+      }
     }, typingDelay);
   }
 }
@@ -382,6 +410,111 @@ function adjustColorBrightness(hex, percent) {
   const bHex = B.toString(16).padStart(2, '0');
 
   return `#${rHex}${gHex}${bHex}`;
+}
+
+// Render interactive Lead Capture Card in chat
+function renderLeadFormCard(source) {
+  if (leadFormActive) return;
+  leadFormActive = true;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = 'message bot';
+  
+  const avatarHtml = `<img class="message-avatar-small" src="${config.avatarUrl}" alt="${config.botName}">`;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  let introText = "Please provide your details below and an agent will reach out to you shortly.";
+  if (source === 'price') {
+    introText = "Interested in pricing details? Leave your info below and our team will send a custom quote!";
+  } else if (source === 'agent') {
+    introText = "Let's get you connected with a specialist. Please share your details below:";
+  } else if (source === 'webhook_failure') {
+    introText = "I'm having trouble reaching my server right now. Leave your info so we can follow up directly!";
+  }
+
+  const formId = `lead-form-${Date.now()}`;
+  messageEl.innerHTML = `
+    ${avatarHtml}
+    <div class="message-bubble-wrapper" style="width: 100%; max-width: 300px;">
+      <div class="lead-form-card">
+        <h4>📩 Lead Information</h4>
+        <p>${introText}</p>
+        <form id="${formId}" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="lead-input-group">
+            <input type="text" class="lead-field-name" placeholder="Full Name" required autocomplete="name">
+          </div>
+          <div class="lead-input-group">
+            <input type="email" class="lead-field-email" placeholder="Email Address" required autocomplete="email">
+          </div>
+          <div class="lead-input-group">
+            <input type="tel" class="lead-field-phone" placeholder="Phone Number" required autocomplete="tel">
+          </div>
+          <button type="submit" class="lead-submit-btn">Submit Details</button>
+        </form>
+      </div>
+      <span class="message-time">${time}</span>
+    </div>
+  `;
+  
+  messagesList.appendChild(messageEl);
+  scrollToBottom();
+
+  const form = document.getElementById(formId);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const nameVal = form.querySelector('.lead-field-name').value.trim();
+    const emailVal = form.querySelector('.lead-field-email').value.trim();
+    const phoneVal = form.querySelector('.lead-field-phone').value.trim();
+    
+    const leadData = {
+      id: 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+      name: nameVal,
+      email: emailVal,
+      phone: phoneVal,
+      timestamp: new Date().toISOString(),
+      source: source,
+      botName: config.botName
+    };
+    
+    form.querySelectorAll('input').forEach(input => input.disabled = true);
+    const submitBtn = form.querySelector('.lead-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    
+    // Post message to parent window
+    try {
+      window.parent.postMessage({ type: 'kartabot-lead-captured', lead: leadData }, '*');
+    } catch (err) {
+      console.error("Failed to postMessage lead data to parent window", err);
+    }
+    
+    setTimeout(() => {
+      const card = form.closest('.lead-form-card');
+      card.innerHTML = `
+        <div class="lead-success-state">
+          <div class="lead-success-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h4>Details Saved!</h4>
+          <p>Thank you, <strong>${escapeHtml(nameVal)}</strong>. An agent will contact you soon!</p>
+        </div>
+      `;
+      leadFormActive = false;
+      scrollToBottom();
+    }, 800);
+  });
+}
+
+function escapeHtml(string) {
+  return String(string)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // Close Chat Frame postMessage trigger

@@ -12,6 +12,18 @@ const codeSnippetBlock = document.getElementById('snippet-code-block');
 const copyCodeBtn = document.getElementById('btn-copy-code');
 const widgetHost = document.getElementById('kartabot-widget-host');
 
+// Leads Dashboard DOM Elements
+const tabButtons = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+const leadsBadge = document.getElementById('leads-badge');
+const leadsSearchInput = document.getElementById('leads-search-input');
+const leadsFilterSelect = document.getElementById('leads-filter-select');
+const btnExportLeads = document.getElementById('btn-export-leads');
+const leadsTableBody = document.getElementById('leads-table-body');
+const leadsTableContainer = document.getElementById('leads-table-container');
+const leadsEmptyState = document.getElementById('leads-empty-state');
+
+
 // State Variables
 let activeTheme = 'light';
 let activeColor = '#6366f1';
@@ -20,6 +32,7 @@ let activeColor = '#6366f1';
 window.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   updateWidget();
+  updateLeadsBadge();
 });
 
 // Setup Control Event Listeners
@@ -74,6 +87,40 @@ function setupEventListeners() {
 
   // Copy code button click
   copyCodeBtn.addEventListener('click', copyCodeSnippet);
+
+  // Tab Switching
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetTab = btn.getAttribute('data-tab');
+      
+      tabButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      tabContents.forEach(content => {
+        const id = content.getAttribute('id');
+        if (id === `tab-${targetTab}`) {
+          content.classList.remove('hidden');
+        } else {
+          content.classList.add('hidden');
+        }
+      });
+      
+      if (targetTab === 'leads') {
+        renderLeadsTable();
+      }
+    });
+  });
+
+  // Leads Filters & Search
+  if (leadsSearchInput) {
+    leadsSearchInput.addEventListener('input', debounce(renderLeadsTable, 200));
+  }
+  if (leadsFilterSelect) {
+    leadsFilterSelect.addEventListener('change', renderLeadsTable);
+  }
+  if (btnExportLeads) {
+    btnExportLeads.addEventListener('click', exportLeadsToCSV);
+  }
 }
 
 // Generate Embed Code Text
@@ -199,3 +246,167 @@ function debounce(func, wait) {
     timeout = setTimeout(later, wait);
   };
 }
+
+// --- Leads Dashboard Logic ---
+
+// Listen to postMessage from the chatbot widget iframe
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'kartabot-lead-captured') {
+    const newLead = event.data.lead;
+    saveLead(newLead);
+  }
+});
+
+function getLeads() {
+  const leadsJson = localStorage.getItem('kartabot-dashboard-leads');
+  return leadsJson ? JSON.parse(leadsJson) : [];
+}
+
+function saveLead(lead) {
+  const leads = getLeads();
+  // Prevent duplicate lead save
+  if (leads.some(l => l.id === lead.id)) return;
+  
+  leads.unshift(lead); // Put newest lead first
+  localStorage.setItem('kartabot-dashboard-leads', JSON.stringify(leads));
+  
+  updateLeadsBadge();
+  
+  // Re-render table if currently active
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.getAttribute('data-tab') === 'leads') {
+    renderLeadsTable();
+  }
+}
+
+function deleteLead(id) {
+  let leads = getLeads();
+  leads = leads.filter(l => l.id !== id);
+  localStorage.setItem('kartabot-dashboard-leads', JSON.stringify(leads));
+  
+  updateLeadsBadge();
+  renderLeadsTable();
+}
+
+function updateLeadsBadge() {
+  const leads = getLeads();
+  if (leadsBadge) {
+    if (leads.length > 0) {
+      leadsBadge.textContent = leads.length;
+      leadsBadge.style.display = 'inline-block';
+    } else {
+      leadsBadge.style.display = 'none';
+    }
+  }
+}
+
+function renderLeadsTable() {
+  const leads = getLeads();
+  const searchQuery = leadsSearchInput ? leadsSearchInput.value.toLowerCase().trim() : '';
+  const filterSource = leadsFilterSelect ? leadsFilterSelect.value : 'all';
+  
+  // Filter leads
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.name.toLowerCase().includes(searchQuery) ||
+      lead.email.toLowerCase().includes(searchQuery) ||
+      lead.phone.toLowerCase().includes(searchQuery) ||
+      (lead.botName && lead.botName.toLowerCase().includes(searchQuery));
+      
+    const matchesSource = filterSource === 'all' || lead.source === filterSource;
+    
+    return matchesSearch && matchesSource;
+  });
+  
+  // Render
+  if (!leadsTableBody) return;
+  leadsTableBody.innerHTML = '';
+  
+  if (filteredLeads.length === 0) {
+    leadsTableContainer.style.display = 'none';
+    leadsEmptyState.style.display = 'flex';
+  } else {
+    leadsTableContainer.style.display = 'block';
+    leadsEmptyState.style.display = 'none';
+    
+    filteredLeads.forEach(lead => {
+      const tr = document.createElement('tr');
+      
+      const formattedDate = new Date(lead.timestamp).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      let sourceClass = 'price';
+      let sourceText = 'Pricing Query';
+      if (lead.source === 'agent') {
+        sourceClass = 'agent';
+        sourceText = 'Agent Request';
+      } else if (lead.source === 'webhook_failure') {
+        sourceClass = 'webhook';
+        sourceText = 'Webhook Failure';
+      }
+      
+      tr.innerHTML = `
+        <td style="color: #9ca3af;">${formattedDate}</td>
+        <td style="font-weight: 500; color: #ffffff;">${escapeHtml(lead.name)}</td>
+        <td><a href="mailto:${escapeHtml(lead.email)}" style="color: var(--primary); text-decoration: none; font-weight: 500;">${escapeHtml(lead.email)}</a></td>
+        <td style="color: #d1d5db;">${escapeHtml(lead.phone)}</td>
+        <td style="color: #d1d5db;"><span style="background-color: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; font-size: 11px;">${escapeHtml(lead.botName || 'KartaBot')}</span></td>
+        <td><span class="lead-source-badge ${sourceClass}">${sourceText}</span></td>
+        <td style="text-align: center;">
+          <button class="btn-delete-lead" data-id="${lead.id}" title="Delete Lead">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </td>
+      `;
+      
+      tr.querySelector('.btn-delete-lead').addEventListener('click', (e) => {
+        const leadId = e.currentTarget.getAttribute('data-id');
+        if (confirm("Are you sure you want to delete this lead?")) {
+          deleteLead(leadId);
+        }
+      });
+      
+      leadsTableBody.appendChild(tr);
+    });
+  }
+}
+
+function exportLeadsToCSV() {
+  const leads = getLeads();
+  if (leads.length === 0) {
+    alert("No leads available to export.");
+    return;
+  }
+  
+  const headers = ['Timestamp', 'Name', 'Email', 'Phone', 'Bot Name', 'Trigger Source'];
+  const rows = leads.map(l => [
+    l.timestamp,
+    l.name,
+    l.email,
+    l.phone,
+    l.botName || 'KartaBot',
+    l.source
+  ]);
+  
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + "\n";
+  
+  rows.forEach(r => {
+    csvContent += r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',') + "\n";
+  });
+  
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `kartabot_captured_leads_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
