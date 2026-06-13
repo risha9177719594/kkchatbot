@@ -1,5 +1,6 @@
 // DOM Elements
 const botNameInput = document.getElementById('input-bot-name');
+const avatarInput = document.getElementById('input-avatar');
 const welcomeInput = document.getElementById('input-welcome');
 const n8nUrlInput = document.getElementById('input-n8n-url');
 const suggestionsInput = document.getElementById('input-suggestions');
@@ -39,6 +40,7 @@ window.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
   // Input changes
   botNameInput.addEventListener('input', debounce(updateWidget, 300));
+  avatarInput.addEventListener('input', debounce(updateWidget, 300));
   welcomeInput.addEventListener('input', debounce(updateWidget, 300));
   n8nUrlInput.addEventListener('input', debounce(updateWidget, 300));
   suggestionsInput.addEventListener('input', debounce(updateWidget, 300));
@@ -132,6 +134,7 @@ function generateSnippetText(config) {
 
   const n8nAttr = config.n8nUrl ? `\n  data-n8n-url="${escapeHtml(config.n8nUrl)}"` : '';
   const suggestionsAttr = config.suggestions ? `\n  data-suggestions="${escapeHtml(config.suggestions)}"` : '';
+  const avatarAttr = config.avatar ? `\n  data-avatar="${escapeHtml(config.avatar)}"` : '';
 
   return `<!-- KartaBot Chatbot Widget Integration -->
 <script
@@ -141,7 +144,7 @@ function generateSnippetText(config) {
   data-color="${config.color}"
   data-theme="${config.theme}"
   data-welcome="${escapeHtml(config.welcome)}"
-  data-position="${config.position}"${n8nAttr}${suggestionsAttr}
+  data-position="${config.position}"${avatarAttr}${n8nAttr}${suggestionsAttr}
   defer>
 </script>`;
 }
@@ -150,6 +153,7 @@ function generateSnippetText(config) {
 function updateWidget() {
   const config = {
     botName: botNameInput.value.trim() || 'KartaBot',
+    avatar: avatarInput.value.trim(),
     welcome: welcomeInput.value.trim() || 'Hello! How can I help you today?',
     n8nUrl: n8nUrlInput.value.trim(),
     suggestions: suggestionsInput.value.trim(),
@@ -191,6 +195,9 @@ function updateWidget() {
   script.setAttribute('data-theme', config.theme);
   script.setAttribute('data-welcome', config.welcome);
   script.setAttribute('data-position', config.position);
+  if (config.avatar) {
+    script.setAttribute('data-avatar', config.avatar);
+  }
   if (config.n8nUrl) {
     script.setAttribute('data-n8n-url', config.n8nUrl);
   }
