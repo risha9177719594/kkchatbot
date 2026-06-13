@@ -86,6 +86,7 @@
       flex-direction: column;
       ${flexPositionStyles}
       gap: 16px;
+      pointer-events: none;
     }
     
     /* Nesting inside preview container override */
@@ -96,6 +97,9 @@
     }
     
     .kartabot-iframe-wrapper {
+      position: absolute;
+      bottom: 72px;
+      ${position}: 0;
       width: 380px;
       height: 600px;
       max-height: calc(100vh - 110px);
@@ -143,6 +147,7 @@
       justify-content: center;
       transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
       position: relative;
+      pointer-events: auto;
     }
     
     .kartabot-launcher:hover {
@@ -313,9 +318,6 @@
       widgetContainer.style.bottom = 'auto';
       widgetContainer.style.right = 'auto';
       widgetContainer.style.left = 'auto';
-      
-      // Ensure we keep flex alignment clean
-      widgetContainer.style.alignItems = 'stretch';
     }
 
     if (isDragging) {
@@ -334,9 +336,13 @@
 
       // Dynamic inversion based on vertical position
       if (newTop < window.innerHeight / 2) {
-        widgetContainer.style.flexDirection = 'column-reverse';
+        iframeWrapper.style.top = '72px';
+        iframeWrapper.style.bottom = 'auto';
+        iframeWrapper.style.transformOrigin = `top ${position}`;
       } else {
-        widgetContainer.style.flexDirection = 'column';
+        iframeWrapper.style.bottom = '72px';
+        iframeWrapper.style.top = 'auto';
+        iframeWrapper.style.transformOrigin = `bottom ${position}`;
       }
     }
   }
@@ -379,7 +385,6 @@
       widgetContainer.style.bottom = 'auto';
       widgetContainer.style.right = 'auto';
       widgetContainer.style.left = 'auto';
-      widgetContainer.style.alignItems = 'stretch';
     }
 
     if (isDragging) {
@@ -399,9 +404,13 @@
 
       // Dynamic inversion based on vertical position
       if (newTop < window.innerHeight / 2) {
-        widgetContainer.style.flexDirection = 'column-reverse';
+        iframeWrapper.style.top = '72px';
+        iframeWrapper.style.bottom = 'auto';
+        iframeWrapper.style.transformOrigin = `top ${position}`;
       } else {
-        widgetContainer.style.flexDirection = 'column';
+        iframeWrapper.style.bottom = '72px';
+        iframeWrapper.style.top = 'auto';
+        iframeWrapper.style.transformOrigin = `bottom ${position}`;
       }
     }
   }
