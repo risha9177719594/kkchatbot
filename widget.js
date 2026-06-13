@@ -86,6 +86,16 @@
       flex-direction: column;
       ${flexPositionStyles}
       gap: 16px;
+      width: 56px;
+      height: 56px;
+      overflow: visible;
+      transition: width 0.25s ease, height 0.25s ease;
+    }
+    
+    .kartabot-widget-container.open {
+      width: 380px;
+      height: 672px;
+      max-height: calc(100vh - 40px);
     }
     
     /* Nesting inside preview container override */
@@ -95,7 +105,15 @@
       z-index: 99999;
     }
     
+    .kartabot-widget-container.kartabot-inline.open {
+      width: 340px;
+      height: 552px;
+    }
+    
     .kartabot-iframe-wrapper {
+      position: absolute;
+      bottom: 72px;
+      ${position}: 0;
       width: 380px;
       height: 600px;
       max-height: calc(100vh - 110px);
@@ -186,11 +204,17 @@
     /* Mobile Responsiveness */
     @media (max-width: 480px) {
       .kartabot-widget-container:not(.kartabot-inline) {
+        bottom: 20px;
+        ${positionStyles}
+        padding: 0;
+        gap: 0;
+      }
+      .kartabot-widget-container:not(.kartabot-inline).open {
+        width: 100vw;
+        height: 100vh;
         bottom: 0;
         left: 0;
         right: 0;
-        padding: 0;
-        gap: 0;
       }
       .kartabot-widget-container:not(.kartabot-inline) .kartabot-iframe-wrapper {
         width: 100vw;
@@ -200,6 +224,7 @@
         bottom: 0;
         left: 0;
         right: 0;
+        top: 0;
         position: fixed;
         border: none;
         transform: translateY(100%);
@@ -280,6 +305,7 @@
   function toggleChat() {
     const isOpen = iframeWrapper.classList.toggle('open');
     launcher.classList.toggle('open', isOpen);
+    widgetContainer.classList.toggle('open', isOpen);
     
     if (isOpen) {
       // Focus the chat input inside the iframe if possible
@@ -298,6 +324,7 @@
       if (event.data.action === 'close') {
         iframeWrapper.classList.remove('open');
         launcher.classList.remove('open');
+        widgetContainer.classList.remove('open');
       }
     }
   });
