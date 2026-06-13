@@ -137,7 +137,7 @@
       background-color: ${accentColor};
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
       border: none;
-      cursor: pointer;
+      cursor: grab;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -152,6 +152,7 @@
     
     .kartabot-launcher:active {
       transform: scale(0.95);
+      cursor: grabbing;
     }
     
     .kartabot-launcher-icon {
@@ -276,6 +277,151 @@
   // Append to host container
   host.appendChild(widgetContainer);
 
+  // Dragging Functionality
+  let isDragging = false;
+  let hasDragged = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+  const dragThreshold = 6;
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return; // Only left click drag
+    
+    const rect = widgetContainer.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+    
+    startX = e.clientX;
+    startY = e.clientY;
+    hasDragged = false;
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+
+  function onMouseMove(e) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    if (!hasDragged && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+      hasDragged = true;
+      isDragging = true;
+      
+      // Reset position styles so we use top/left absolute
+      widgetContainer.style.bottom = 'auto';
+      widgetContainer.style.right = 'auto';
+      widgetContainer.style.left = 'auto';
+      
+      // Ensure we keep flex alignment clean
+      widgetContainer.style.alignItems = 'stretch';
+    }
+
+    if (isDragging) {
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      const rect = widgetContainer.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+
+      newLeft = Math.max(0, Math.min(newLeft, maxX));
+      newTop = Math.max(0, Math.min(newTop, maxY));
+
+      widgetContainer.style.left = newLeft + 'px';
+      widgetContainer.style.top = newTop + 'px';
+
+      // Dynamic inversion based on vertical position
+      if (newTop < window.innerHeight / 2) {
+        widgetContainer.style.flexDirection = 'column-reverse';
+      } else {
+        widgetContainer.style.flexDirection = 'column';
+      }
+    }
+  }
+
+  function onMouseUp(e) {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    
+    if (hasDragged) {
+      setTimeout(() => {
+        isDragging = false;
+        hasDragged = false;
+      }, 50);
+    }
+  }
+
+  // Touch Support for Mobile
+  function onTouchStart(e) {
+    const touch = e.touches[0];
+    const rect = widgetContainer.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+    
+    startX = touch.clientX;
+    startY = touch.clientY;
+    hasDragged = false;
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+  }
+
+  function onTouchMove(e) {
+    const touch = e.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+
+    if (!hasDragged && (Math.abs(dx) > dragThreshold || Math.abs(dy) > dragThreshold)) {
+      hasDragged = true;
+      isDragging = true;
+      widgetContainer.style.bottom = 'auto';
+      widgetContainer.style.right = 'auto';
+      widgetContainer.style.left = 'auto';
+      widgetContainer.style.alignItems = 'stretch';
+    }
+
+    if (isDragging) {
+      e.preventDefault(); // Stop window bouncing/scrolling
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+
+      const rect = widgetContainer.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+
+      newLeft = Math.max(0, Math.min(newLeft, maxX));
+      newTop = Math.max(0, Math.min(newTop, maxY));
+
+      widgetContainer.style.left = newLeft + 'px';
+      widgetContainer.style.top = newTop + 'px';
+
+      // Dynamic inversion based on vertical position
+      if (newTop < window.innerHeight / 2) {
+        widgetContainer.style.flexDirection = 'column-reverse';
+      } else {
+        widgetContainer.style.flexDirection = 'column';
+      }
+    }
+  }
+
+  function onTouchEnd(e) {
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+    
+    if (hasDragged) {
+      setTimeout(() => {
+        isDragging = false;
+        hasDragged = false;
+      }, 50);
+    }
+  }
+
+  // Attach drag events to the launcher button
+  launcher.addEventListener('mousedown', onMouseDown);
+  launcher.addEventListener('touchstart', onTouchStart, { passive: true });
+
   // Toggle Functionality
   function toggleChat() {
     const isOpen = iframeWrapper.classList.toggle('open');
@@ -289,7 +435,14 @@
     }
   }
 
-  launcher.addEventListener('click', toggleChat);
+  launcher.addEventListener('click', (e) => {
+    if (isDragging || hasDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    toggleChat();
+  });
 
   // Handle postMessage commands from inside iframe (like Close button)
   window.addEventListener('message', (event) => {
