@@ -627,9 +627,8 @@ function renderGemstoneFormCard() {
     const submitBtn = form.querySelector('.lead-submit-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
-    
     // Post to Webhook if available
-    let postPromise = Promise.resolve();
+    let postPromise = Promise.resolve(null);
     if (config.n8nUrl) {
       postPromise = fetch(config.n8nUrl, {
         method: 'POST',
@@ -647,12 +646,12 @@ function renderGemstoneFormCard() {
         if (!response.ok) {
           throw new Error(`Webhook responded with status ${response.status}`);
         }
-        return response;
+        return response.json();
       });
     }
 
     postPromise
-      .then(() => {
+      .then((data) => {
         // Post message to parent window (for live preview dashboard UI updates if needed)
         try {
           window.parent.postMessage({ type: 'kartabot-lead-captured', lead: gemData }, '*');
@@ -662,15 +661,27 @@ function renderGemstoneFormCard() {
         
         setTimeout(() => {
           const card = form.closest('.lead-form-card');
+          
+          let responseText = "";
+          if (data) {
+            responseText = data.reply || data.response || data.output || data.text || (typeof data === 'string' ? data : '');
+          }
+          
+          if (!responseText) {
+            responseText = `Thank you, **${escapeHtml(nameVal)}**. We've recorded your birth details and will recommend your gemstone shortly!`;
+          }
+          
+          const formattedReply = parseMessageMarkdown(responseText);
+          
           card.innerHTML = `
-            <div class="lead-success-state">
-              <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7;">
+            <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0;">
+              <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7; margin-bottom: 8px; align-self: center;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h4>Request Received!</h4>
-              <p>Thank you, <strong>${escapeHtml(nameVal)}</strong>. We've recorded your birth details and will recommend your gemstone shortly!</p>
+              <h4 style="align-self: center; margin-bottom: 8px;">Recommendation</h4>
+              <div style="font-size: 13px; color: var(--body-text); line-height: 1.5; width: 100%;">${formattedReply}</div>
             </div>
           `;
           leadFormActive = false;
