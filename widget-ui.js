@@ -129,6 +129,7 @@ function addMessage(text, sender = 'bot') {
 
 // Parse markdown tags
 function parseMessageMarkdown(text) {
+  alert(text);
   const textStr = String(text || '');
   // Convert [text](url) to anchor links
   let html = textStr.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
