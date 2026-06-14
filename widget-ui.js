@@ -127,9 +127,78 @@ function addMessage(text, sender = 'bot') {
   scrollToBottom();
 }
 
+// Intelligent helper to extract human-readable text from various API/LLM response shapes
+function extractText(data) {
+  if (data === null || data === undefined) return "";
+  
+  // 1. If it's a string, check if it's stringified JSON
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return extractText(parsed); // Recurse with parsed JSON
+      } catch (e) {
+        return trimmed; // Not valid JSON, treat as raw text
+      }
+    }
+    return trimmed;
+  }
+  
+  // 2. If it's an array, extract from its items
+  if (Array.isArray(data)) {
+    if (data.length === 0) return "";
+    // If it's an array of content blocks with 'text' or 'output_text', combine them
+    const texts = data
+      .map(item => {
+        if (item && typeof item === 'object') {
+          return item.text || item.output_text || extractText(item);
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+    if (texts.length > 0) return texts.join('\n\n');
+    return extractText(data[0]);
+  }
+  
+  // 3. If it's an object, check standard response keys
+  if (typeof data === 'object') {
+    // Check Claude/Anthropic content block structure
+    if (data.content && Array.isArray(data.content)) {
+      return extractText(data.content);
+    }
+    
+    // Check standard keys
+    const val = data.reply || data.response || data.output || data.text || data.message || data.output_text;
+    if (val !== undefined && val !== null && val !== '') {
+      return extractText(val);
+    }
+    
+    // Check if it has a content block directly
+    if (data.content && typeof data.content === 'string') {
+      return data.content;
+    }
+    
+    // Check nested json object (n8n output format)
+    if (data.json && typeof data.json === 'object') {
+      return extractText(data.json);
+    }
+    
+    // If it has only one key, extract from that key
+    const keys = Object.keys(data);
+    if (keys.length === 1) {
+      return extractText(data[keys[0]]);
+    }
+    
+    // Fallback: Stringify the object
+    return JSON.stringify(data);
+  }
+  
+  return String(data);
+}
+
 // Parse markdown tags
 function parseMessageMarkdown(text) {
-  alert(text);
   const textStr = String(text || '');
   // Convert [text](url) to anchor links
   let html = textStr.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
@@ -253,11 +322,11 @@ function triggerBotResponse(userMessage) {
       setTyping(false);
       
       // Look for standard response keys from n8n response object
-      const reply = data.reply || data.response || data.output || data.text || data.message || (typeof data === 'string' ? data : '');
+      const reply = extractText(data);
       if (reply) {
         addMessage(reply, 'bot');
       } else {
-        addMessage("Received response from n8n, but no text was found in standard JSON fields (`response`, `output`, `reply`, `text`, `message`).", 'bot');
+        addMessage("Received response from n8n, but no text was resolved in standard fields.", 'bot');
       }
       
       // Update quick suggestion questions if n8n returns them, otherwise fall back to suggested ones
@@ -692,18 +761,7 @@ function renderGemstoneFormCard() {
               throw new Error("Could not find lead-form-card element in DOM");
             }
             
-            let responseText = "";
-            if (data) {
-              // Handle array of items (like n8n output formats)
-              const dataObj = Array.isArray(data) ? data[0] : data;
-              
-              if (dataObj && typeof dataObj === 'object') {
-                const val = dataObj.reply || dataObj.response || dataObj.output || dataObj.text || dataObj.message || '';
-                responseText = typeof val === 'object' ? JSON.stringify(val) : String(val);
-              } else if (dataObj !== undefined && dataObj !== null) {
-                responseText = String(dataObj);
-              }
-            }
+            let responseText = extractText(data);
             
             if (!responseText) {
               responseText = `Thank you, **${escapeHtml(nameVal)}**. We've recorded your birth details and will recommend your gemstone shortly!`;
