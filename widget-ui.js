@@ -251,11 +251,11 @@ function triggerBotResponse(userMessage) {
       setTyping(false);
       
       // Look for standard response keys from n8n response object
-      const reply = data.reply || data.response || data.output || data.text || (typeof data === 'string' ? data : '');
+      const reply = data.reply || data.response || data.output || data.text || data.message || (typeof data === 'string' ? data : '');
       if (reply) {
         addMessage(reply, 'bot');
       } else {
-        addMessage("Received response from n8n, but no text was found in standard JSON fields (`response`, `output`, `reply`, `text`).", 'bot');
+        addMessage("Received response from n8n, but no text was found in standard JSON fields (`response`, `output`, `reply`, `text`, `message`).", 'bot');
       }
       
       // Update quick suggestion questions if n8n returns them, otherwise fall back to suggested ones
@@ -664,7 +664,7 @@ function renderGemstoneFormCard() {
           
           let responseText = "";
           if (data) {
-            responseText = data.reply || data.response || data.output || data.text || (typeof data === 'string' ? data : '');
+            responseText = data.reply || data.response || data.output || data.text || data.message || (typeof data === 'string' ? data : '');
           }
           
           if (!responseText) {

@@ -63,6 +63,9 @@
   if (n8nUrl) queryParams.set('n8nUrl', n8nUrl);
   if (suggestions) queryParams.set('suggestions', suggestions);
   
+  // Add cache-buster to prevent iframe page caching during edits
+  queryParams.set('t', new Date().getTime());
+  
   const finalIframeUrl = `${widgetUiUrl}?${queryParams.toString()}`;
 
   // Inject styles for launcher and iframe container
