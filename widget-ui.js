@@ -627,6 +627,18 @@ function renderGemstoneFormCard() {
     const submitBtn = form.querySelector('.lead-submit-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting...';
+    // Clear any previous error
+    const existingError = form.querySelector('.lead-form-error');
+    if (existingError) {
+      existingError.remove();
+    }
+    
+    // Setup AbortController for a 15-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 15000);
+
     // Post to Webhook if available
     let postPromise = Promise.resolve(null);
     if (config.n8nUrl) {
@@ -635,6 +647,7 @@ function renderGemstoneFormCard() {
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           event: 'gemstone_recommendation',
           lead: gemData,
@@ -643,10 +656,21 @@ function renderGemstoneFormCard() {
         })
       })
       .then(response => {
+        clearTimeout(timeoutId);
         if (!response.ok) {
           throw new Error(`Webhook responded with status ${response.status}`);
         }
-        return response.json();
+        return response.text().then(text => {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            return text; // Return raw text if not valid JSON
+          }
+        });
+      })
+      .catch(err => {
+        clearTimeout(timeoutId);
+        throw err;
       });
     }
 
@@ -660,40 +684,95 @@ function renderGemstoneFormCard() {
         }
         
         setTimeout(() => {
-          const card = form.closest('.lead-form-card');
-          
-          let responseText = "";
-          if (data) {
-            responseText = data.reply || data.response || data.output || data.text || data.message || (typeof data === 'string' ? data : '');
-          }
-          
-          if (!responseText) {
-            responseText = `Thank you, **${escapeHtml(nameVal)}**. We've recorded your birth details and will recommend your gemstone shortly!`;
-          }
-          
-          const formattedReply = parseMessageMarkdown(responseText);
-          
-          card.innerHTML = `
-            <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0;">
-              <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7; margin-bottom: 8px; align-self: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+          try {
+            const card = form.closest('.lead-form-card');
+            if (!card) {
+              throw new Error("Could not find lead-form-card element in DOM");
+            }
+            
+            let responseText = "";
+            if (data) {
+              // Handle array of items (like n8n output formats)
+              const dataObj = Array.isArray(data) ? data[0] : data;
+              
+              if (dataObj && typeof dataObj === 'object') {
+                responseText = dataObj.reply || dataObj.response || dataObj.output || dataObj.text || dataObj.message || '';
+              } else if (typeof dataObj === 'string') {
+                responseText = dataObj;
+              }
+            }
+            
+            if (!responseText) {
+              responseText = `Thank you, **${escapeHtml(nameVal)}**. We've recorded your birth details and will recommend your gemstone shortly!`;
+            }
+            
+            const formattedReply = parseMessageMarkdown(responseText);
+            
+            card.innerHTML = `
+              <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0;">
+                <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7; margin-bottom: 8px; align-self: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h4 style="align-self: center; margin-bottom: 8px;">Recommendation</h4>
+                <div style="font-size: 13px; color: var(--body-text); line-height: 1.5; width: 100%;">${formattedReply}</div>
               </div>
-              <h4 style="align-self: center; margin-bottom: 8px;">Recommendation</h4>
-              <div style="font-size: 13px; color: var(--body-text); line-height: 1.5; width: 100%;">${formattedReply}</div>
-            </div>
-          `;
-          leadFormActive = false;
-          scrollToBottom();
+            `;
+            leadFormActive = false;
+            scrollToBottom();
+          } catch (err) {
+            console.error("Error updating gemstone success card UI:", err);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Get Recommendation';
+            form.querySelectorAll('input').forEach(input => input.disabled = false);
+          }
         }, 800);
       })
       .catch(error => {
         console.error("Failed to post gemstone recommendation request to webhook:", error);
+        
+        // Handle AbortError / Timeout gracefully by closing form and displaying standard confirmation
+        if (error.name === 'AbortError') {
+          setTimeout(() => {
+            try {
+              const card = form.closest('.lead-form-card');
+              if (card) {
+                const fallbackText = `Your birth details have been recorded! The calculation is taking a bit longer, but we will send your gemstone recommendation shortly.`;
+                card.innerHTML = `
+                  <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0;">
+                    <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7; margin-bottom: 8px; align-self: center;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h4 style="align-self: center; margin-bottom: 8px;">Recommendation</h4>
+                    <div style="font-size: 13px; color: var(--body-text); line-height: 1.5; width: 100%;">${fallbackText}</div>
+                  </div>
+                `;
+              }
+              leadFormActive = false;
+              scrollToBottom();
+            } catch (e) {}
+          }, 800);
+          return;
+        }
+
         submitBtn.disabled = false;
         submitBtn.textContent = 'Get Recommendation';
         form.querySelectorAll('input').forEach(input => input.disabled = false);
-        alert("Failed to submit details to webhook. Please check connection and try again.");
+        
+        // Show inline error message instead of blocking browser alert
+        let errorEl = form.querySelector('.lead-form-error');
+        if (!errorEl) {
+          errorEl = document.createElement('div');
+          errorEl.className = 'lead-form-error';
+          errorEl.style.color = '#ef4444';
+          errorEl.style.fontSize = '12px';
+          errorEl.style.marginTop = '8px';
+          form.appendChild(errorEl);
+        }
+        errorEl.textContent = "⚠️ Submission failed. Please check connection and try again.";
       });
   });
 }
