@@ -129,8 +129,9 @@ function addMessage(text, sender = 'bot') {
 
 // Parse markdown tags
 function parseMessageMarkdown(text) {
+  const textStr = String(text || '');
   // Convert [text](url) to anchor links
-  let html = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  let html = textStr.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   // Convert **text** to strong
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   // Convert *text* to em
@@ -696,9 +697,10 @@ function renderGemstoneFormCard() {
               const dataObj = Array.isArray(data) ? data[0] : data;
               
               if (dataObj && typeof dataObj === 'object') {
-                responseText = dataObj.reply || dataObj.response || dataObj.output || dataObj.text || dataObj.message || '';
-              } else if (typeof dataObj === 'string') {
-                responseText = dataObj;
+                const val = dataObj.reply || dataObj.response || dataObj.output || dataObj.text || dataObj.message || '';
+                responseText = typeof val === 'object' ? JSON.stringify(val) : String(val);
+              } else if (dataObj !== undefined && dataObj !== null) {
+                responseText = String(dataObj);
               }
             }
             
