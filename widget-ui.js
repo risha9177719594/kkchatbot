@@ -768,9 +768,81 @@ function renderGemstoneFormCard() {
             }
             
             const formattedReply = parseMessageMarkdown(responseText);
+
+            const stones = {
+              emerald: { label: "Emerald (Panna)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/green1.png?v=1770534103", buy: "/collections/emerald-panna", keywords: ["emerald", "panna"] },
+              yellow: { label: "Yellow Sapphire", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/yellow1.png?v=1770534117", buy: "/collections/yellow-sapphire-pukhraj", keywords: ["yellow sapphire", "pukhraj"] },
+              blue: { label: "Blue Sapphire", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/blue1.png?v=1770534176", buy: "/collections/blue-sapphire-neelam", keywords: ["blue sapphire", "neelam"] },
+              ruby: { label: "Ruby (Manik)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/red1.png?v=1770534117", buy: "/collections/ruby-manik", keywords: ["ruby", "manik"] },
+              safed: { label: "White Sapphire (Safed Pukhraj)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/white1.png?v=1770534117", buy: "/collections/white-sapphire-safed-pukhraj", keywords: ["white sapphire", "safed pukhraj", "safed"] },
+              hessonite: { label: "Hessonite (Gomed)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/hessonite-gomed", keywords: ["hessonite", "gomed"] },
+              gomed: { label: "Hessonite (Gomed)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/hessonite-gomed", keywords: ["hessonite", "gomed"] },
+              coral: { label: "Red Coral (Moonga)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/red-coral-moonga", keywords: ["red coral", "coral", "moonga"] },
+              moonga: { label: "Red Coral (Moonga)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/red-coral-moonga", keywords: ["red coral", "coral", "moonga"] },
+              cats: { label: "Cats Eye (Lahsuniya)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/cats-eye-lahsuniya", keywords: ["cats eye", "lahsuniya", "cat's eye"] },
+              lahsuniya: { label: "Cats Eye (Lahsuniya)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/cats-eye-lahsuniya", keywords: ["cats eye", "lahsuniya", "cat's eye"] },
+              pearl: { label: "Pearl (Moti)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/pearl-moti", keywords: ["pearl", "moti"] },
+              moti: { label: "Pearl (Moti)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/pearl-moti", keywords: ["pearl", "moti"] },
+              opal: { label: "Opal (Dudhiya Pathar)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/opal-dudhiya-pathar", keywords: ["opal", "dudhiya"] },
+              garnet: { label: "Red Garnet (Rakt Mani)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/red-garnet-rakt-mani", keywords: ["garnet", "rakt mani"] },
+              moonstone: { label: "Moonstone (Chandrakant)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/moonstone-chandrakant", keywords: ["moonstone", "chandrakant"] },
+              carnelian: { label: "Carnelian (Rat-Ratua)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/carnelian-rat-ratua", keywords: ["carnelian", "rat-ratua"] },
+              peridot: { label: "Peridot (Mani Stone)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/peridot-mani-stone", keywords: ["peridot"] },
+              onyx: { label: "Green Onyx (Sulemani)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/green-onyx-sulemani", keywords: ["onyx", "sulemani"] },
+              jade: { label: "Jade (Crassula)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/jade-crassula", keywords: ["jade"] },
+              citrine: { label: "Citrine (Sunela)", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/citrine-sunela", keywords: ["citrine", "sunela"] },
+              amethyst: { label: "Amethyst", img: "https://cdn.shopify.com/s/files/1/0666/4798/2128/files/full_logosvg.svg?v=1768233942", buy: "/collections/amethyst-jamunia", keywords: ["amethyst", "jamunia"] }
+            };
+
+            const lowerText = responseText.toLowerCase();
+            const primaryMatch = responseText.match(/Primary Gemstone:\s*([^\n\r#]+)/i);
+            const primaryText = primaryMatch ? primaryMatch[1].trim().toLowerCase() : "";
+            
+            let primaryKey = "";
+            Object.keys(stones).forEach(key => {
+              if (primaryText && stones[key].keywords.some(kw => primaryText.includes(kw))) {
+                primaryKey = key;
+              }
+            });
+
+            let gemstoneGridHtml = "";
+            let matchCount = 0;
+            const renderedStones = new Set();
+
+            Object.keys(stones).forEach(key => {
+              const isMatched = stones[key].keywords.some(keyword => lowerText.includes(keyword));
+              if (isMatched) {
+                const uniqueId = stones[key].buy;
+                if (renderedStones.has(uniqueId)) return;
+                renderedStones.add(uniqueId);
+
+                matchCount++;
+                const isPrimary = (key === primaryKey);
+                gemstoneGridHtml += `
+                  <div class="gemstone-card" style="position: relative; flex: 0 0 120px; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 12px 8px; border-radius: 12px; box-sizing: border-box; background-color: ${isPrimary ? 'rgba(34, 197, 94, 0.05)' : 'var(--input-bg)'}; border: ${isPrimary ? '1.5px solid #22c55e' : '1px solid var(--input-border)'}; box-shadow: var(--shadow-sm); z-index: 1;">
+                    ${isPrimary ? '<span style="position: absolute; top: 6px; right: 6px; background-color: #22c55e; color: #ffffff; font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; z-index: 10;">PRIMARY</span>' : ''}
+                    <img src="${stones[key].img}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-color); background-color: #ffffff; padding: 2px; margin-bottom: 8px;">
+                    <strong style="font-size: 11px; font-weight: 600; color: var(--header-text); margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 30px; line-height: 1.3; width: 100%;">${stones[key].label}</strong>
+                    <a class="gemstone-buy-btn" href="${stones[key].buy}" target="_blank">Buy Now</a>
+                  </div>
+                `;
+              }
+            });
+
+            let gemstoneSectionHtml = "";
+            if (matchCount > 0) {
+              gemstoneSectionHtml = `
+                <div style="margin-top: 14px; width: 100%;">
+                  <h4 style="font-size: 12px; font-weight: 600; color: var(--header-text); margin-bottom: 4px; text-align: left;">Recommended Gemstones</h4>
+                  <div class="gemstone-grid">
+                    ${gemstoneGridHtml}
+                  </div>
+                </div>
+              `;
+            }
             
             card.innerHTML = `
-              <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0;">
+              <div class="lead-success-state" style="text-align: left; align-items: flex-start; padding: 0; width: 100%;">
                 <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7; margin-bottom: 8px; align-self: center;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -778,6 +850,7 @@ function renderGemstoneFormCard() {
                 </div>
                 <h4 style="align-self: center; margin-bottom: 8px;">Recommendation</h4>
                 <div style="font-size: 13px; color: var(--body-text); line-height: 1.5; width: 100%;">${formattedReply}</div>
+                ${gemstoneSectionHtml}
               </div>
             `;
             leadFormActive = false;

@@ -633,3 +633,41 @@ body, html {
   margin: 0;
 }
 
+/* Gemstone Grid & Cards */
+.gemstone-grid {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  width: 100%;
+  padding: 6px 2px;
+  margin-top: 14px;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  box-sizing: border-box;
+}
+
+.gemstone-grid::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome/Safari */
+}
+
+/* Buy Now button styling */
+.gemstone-buy-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background-color: #6c7a47; /* Mossy green from screenshot */
+  color: #ffffff !important;
+  text-decoration: none !important;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  margin-top: auto;
+  box-sizing: border-box;
+}
+
+.gemstone-buy-btn:hover {
+  background-color: #556234;
+  transform: translateY(-1px);
+}
+
