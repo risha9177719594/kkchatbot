@@ -215,9 +215,13 @@ function triggerBotResponse(userMessage) {
   const lowerMsg = userMessage.toLowerCase();
   const isPriceQuery = contains(lowerMsg, ['price', 'pricing', 'cost', 'subscription', 'rates', 'plan', 'plans', 'payment', 'charge']);
   const isAgentQuery = contains(lowerMsg, ['agent', 'human', 'support', 'contact', 'representative', 'person', 'live chat', 'talk to agent', 'speak to agent', 'email', 'help']);
+  const isGemstoneQuery = contains(lowerMsg, ['gem', 'gemstone', 'gemstones', 'lucky stone', 'astrology stone', 'birthstone', 'recommendation']);
   
   let shouldCaptureLead = null;
-  if (isAgentQuery) {
+  let shouldRecommendGemstone = false;
+  if (isGemstoneQuery) {
+    shouldRecommendGemstone = true;
+  } else if (isAgentQuery) {
     shouldCaptureLead = 'agent';
   } else if (isPriceQuery) {
     shouldCaptureLead = 'price';
@@ -263,8 +267,12 @@ function triggerBotResponse(userMessage) {
         }, 400);
       }
 
-      // Capture lead if pricing or agent queries were detected
-      if (shouldCaptureLead) {
+      // Capture lead or trigger gemstone recommendation form if detected
+      if (shouldRecommendGemstone) {
+        setTimeout(() => {
+          renderGemstoneFormCard();
+        }, 1200);
+      } else if (shouldCaptureLead) {
         setTimeout(() => {
           renderLeadFormCard(shouldCaptureLead);
         }, 1200);
@@ -296,8 +304,12 @@ function triggerBotResponse(userMessage) {
         }
       }, 400);
 
-      // Capture lead if pricing or agent queries were detected
-      if (shouldCaptureLead) {
+      // Capture lead or trigger gemstone recommendation form if detected
+      if (shouldRecommendGemstone) {
+        setTimeout(() => {
+          renderGemstoneFormCard();
+        }, 1200);
+      } else if (shouldCaptureLead) {
         setTimeout(() => {
           renderLeadFormCard(shouldCaptureLead);
         }, 1200);
@@ -535,6 +547,140 @@ function renderLeadFormCard(source) {
         console.error("Failed to post lead to webhook:", error);
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit Details';
+        form.querySelectorAll('input').forEach(input => input.disabled = false);
+        alert("Failed to submit details to webhook. Please check connection and try again.");
+      });
+  });
+}
+
+// Render interactive Gemstone Recommendation Form Card in chat
+function renderGemstoneFormCard() {
+  if (leadFormActive) return; // Share the form active lock to prevent duplicate cards
+  leadFormActive = true;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = 'message bot';
+  
+  const avatarHtml = `<img class="message-avatar-small" src="${config.avatarUrl}" alt="${config.botName}">`;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  const introText = "Please fill out your birth details and weight to receive your gemstone recommendation:";
+  const formId = `gemstone-form-${Date.now()}`;
+
+  messageEl.innerHTML = `
+    ${avatarHtml}
+    <div class="message-bubble-wrapper" style="width: 100%; max-width: 300px;">
+      <div class="lead-form-card">
+        <h4>💎 Gemstone Recommendation</h4>
+        <p>${introText}</p>
+        <form id="${formId}" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="lead-input-group">
+            <input type="text" class="lead-field-name" placeholder="Full Name" required autocomplete="name">
+          </div>
+          <div class="lead-input-group">
+            <label>Date of Birth</label>
+            <input type="date" class="lead-field-dob" required>
+          </div>
+          <div class="lead-input-group">
+            <label>Time of Birth</label>
+            <input type="time" class="lead-field-tob" required>
+          </div>
+          <div class="lead-input-group">
+            <input type="text" class="lead-field-pob" placeholder="Place of Birth" required>
+          </div>
+          <div class="lead-input-group">
+            <input type="number" class="lead-field-weight" placeholder="Body Weight (kg)" required min="1" max="500" step="any">
+          </div>
+          <button type="submit" class="lead-submit-btn">Get Recommendation</button>
+        </form>
+      </div>
+      <span class="message-time">${time}</span>
+    </div>
+  `;
+  
+  messagesList.appendChild(messageEl);
+  scrollToBottom();
+
+  const form = document.getElementById(formId);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const nameVal = form.querySelector('.lead-field-name').value.trim();
+    const dobVal = form.querySelector('.lead-field-dob').value;
+    const tobVal = form.querySelector('.lead-field-tob').value;
+    const pobVal = form.querySelector('.lead-field-pob').value.trim();
+    const weightVal = parseFloat(form.querySelector('.lead-field-weight').value);
+    
+    const gemData = {
+      id: 'gem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+      name: nameVal,
+      dob: dobVal,
+      tob: tobVal,
+      pob: pobVal,
+      weight: weightVal,
+      timestamp: new Date().toISOString(),
+      source: 'gemstone',
+      botName: config.botName
+    };
+    
+    form.querySelectorAll('input').forEach(input => input.disabled = true);
+    const submitBtn = form.querySelector('.lead-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    
+    // Post to Webhook if available
+    let postPromise = Promise.resolve();
+    if (config.n8nUrl) {
+      postPromise = fetch(config.n8nUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event: 'gemstone_recommendation',
+          lead: gemData,
+          sessionId: getSessionId(),
+          timestamp: new Date().toISOString()
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Webhook responded with status ${response.status}`);
+        }
+        return response;
+      });
+    }
+
+    postPromise
+      .then(() => {
+        // Post message to parent window (for live preview dashboard UI updates if needed)
+        try {
+          window.parent.postMessage({ type: 'kartabot-lead-captured', lead: gemData }, '*');
+        } catch (err) {
+          console.error("Failed to postMessage gemstone data to parent window", err);
+        }
+        
+        setTimeout(() => {
+          const card = form.closest('.lead-form-card');
+          card.innerHTML = `
+            <div class="lead-success-state">
+              <div class="lead-success-icon" style="background-color: rgba(168, 85, 247, 0.1); color: #a855f7;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h4>Request Received!</h4>
+              <p>Thank you, <strong>${escapeHtml(nameVal)}</strong>. We've recorded your birth details and will recommend your gemstone shortly!</p>
+            </div>
+          `;
+          leadFormActive = false;
+          scrollToBottom();
+        }, 800);
+      })
+      .catch(error => {
+        console.error("Failed to post gemstone recommendation request to webhook:", error);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Get Recommendation';
         form.querySelectorAll('input').forEach(input => input.disabled = false);
         alert("Failed to submit details to webhook. Please check connection and try again.");
       });

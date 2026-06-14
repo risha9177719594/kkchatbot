@@ -547,6 +547,15 @@ body, html {
   gap: 4px;
 }
 
+.lead-input-group label {
+  font-size: 11px;
+  color: var(--time-text);
+  margin-bottom: 2px;
+  font-weight: 500;
+  display: block;
+  text-align: left;
+}
+
 .lead-input-group input {
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
