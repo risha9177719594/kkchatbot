@@ -28,23 +28,48 @@ const leadsEmptyState = document.getElementById('leads-empty-state');
 // State Variables
 let activeTheme = 'light';
 let activeColor = '#6366f1';
+let supabaseClient = null;
+let isSupabaseConnected = false;
+let projectsList = [];
+let activeProject = null;
+
+// Local fallback defaults
+const LOCAL_PROJECTS_KEY = 'kartabot_local_projects';
+const ACTIVE_PROJECT_ID_KEY = 'kartabot_active_project_id';
+const SUPABASE_CONFIG_KEY = 'kartabot_supabase_config';
+
+const defaultProject = {
+  id: 'local-default',
+  name: 'Default Client (Local)',
+  bot_name: 'KartaBot',
+  avatar_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+  welcome_message: 'Hello! Welcome to our website. How can I help you today? 😊',
+  n8n_url: 'https://n8n.srv1175271.hstgr.cloud/webhook/VelBot',
+  suggestions: 'What are your features?, Tell me about pricing, How do I embed this widget?',
+  theme: 'light',
+  color: '#6366f1',
+  position: 'right'
+};
 
 // Initial Load
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
-  updateWidget();
+  setupModalEvents();
+  setupDashboardActions();
+  await initDatabase();
+  await loadProjects();
   updateLeadsBadge();
 });
 
 // Setup Control Event Listeners
 function setupEventListeners() {
   // Input changes
-  botNameInput.addEventListener('input', debounce(updateWidget, 300));
-  avatarInput.addEventListener('input', debounce(updateWidget, 300));
-  welcomeInput.addEventListener('input', debounce(updateWidget, 300));
-  n8nUrlInput.addEventListener('input', debounce(updateWidget, 300));
-  suggestionsInput.addEventListener('input', debounce(updateWidget, 300));
-  positionSelect.addEventListener('change', updateWidget);
+  botNameInput.addEventListener('input', debounce(handleInputChange, 300));
+  avatarInput.addEventListener('input', debounce(handleInputChange, 300));
+  welcomeInput.addEventListener('input', debounce(handleInputChange, 300));
+  n8nUrlInput.addEventListener('input', debounce(handleInputChange, 300));
+  suggestionsInput.addEventListener('input', debounce(handleInputChange, 300));
+  positionSelect.addEventListener('change', handleInputChange);
 
   // Color picker change
   colorPicker.addEventListener('input', (e) => {
@@ -57,7 +82,7 @@ function setupEventListeners() {
       dot.classList.toggle('active', dotColor.toLowerCase() === activeColor.toLowerCase());
     });
     
-    updateWidget();
+    handleInputChange();
   });
 
   // Preset dots clicks
@@ -72,7 +97,7 @@ function setupEventListeners() {
       colorPicker.value = activeColor;
       colorHexText.textContent = activeColor.toUpperCase();
       
-      updateWidget();
+      handleInputChange();
     });
   });
 
@@ -83,7 +108,7 @@ function setupEventListeners() {
       btn.classList.add('active');
       
       activeTheme = btn.getAttribute('data-theme');
-      updateWidget();
+      handleInputChange();
     });
   });
 
@@ -109,6 +134,8 @@ function setupEventListeners() {
       
       if (targetTab === 'leads') {
         renderLeadsTable();
+      } else if (targetTab === 'projects') {
+        renderProjectsGrid();
       }
     });
   });
@@ -412,5 +439,599 @@ function exportLeadsToCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+const debouncedSave = debounce(saveActiveProject, 1000);
+
+function handleInputChange() {
+  updateWidget();
+  debouncedSave();
+}
+
+async function initDatabase() {
+  const savedConfig = localStorage.getItem(SUPABASE_CONFIG_KEY);
+  if (savedConfig) {
+    try {
+      const config = JSON.parse(savedConfig);
+      if (config.url && config.key) {
+        if (window.supabase) {
+          supabaseClient = window.supabase.createClient(config.url, config.key);
+          const { data, error } = await supabaseClient
+            .from('kartabot_projects')
+            .select('id')
+            .limit(1);
+          
+          if (!error) {
+            isSupabaseConnected = true;
+            setSyncStatus('online');
+            return;
+          }
+          console.warn('Supabase test query failed, falling back to local mode:', error);
+        } else {
+          console.error('Supabase library not loaded in window object');
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing Supabase configuration:', e);
+    }
+  }
+  isSupabaseConnected = false;
+  supabaseClient = null;
+  setSyncStatus('offline');
+}
+
+async function loadProjects() {
+  if (isSupabaseConnected && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('kartabot_projects')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      projectsList = data || [];
+    } catch (e) {
+      console.error('Error loading projects from Supabase:', e);
+      setSyncStatus('error');
+      loadLocalProjects();
+    }
+  } else {
+    loadLocalProjects();
+  }
+
+  if (projectsList.length === 0) {
+    if (!isSupabaseConnected) {
+      projectsList = [JSON.parse(JSON.stringify(defaultProject))];
+      saveLocalProjects();
+    }
+  }
+
+  const savedActiveId = localStorage.getItem(ACTIVE_PROJECT_ID_KEY);
+  let projectToSelect = projectsList.find(p => p.id === savedActiveId);
+  if (!projectToSelect && projectsList.length > 0) {
+    projectToSelect = projectsList[0];
+  }
+
+  if (projectToSelect) {
+    selectProject(projectToSelect.id);
+  } else {
+    clearFormFields();
+    renderProjectsSelector();
+    renderProjectsGrid();
+  }
+}
+
+function loadLocalProjects() {
+  const localData = localStorage.getItem(LOCAL_PROJECTS_KEY);
+  if (localData) {
+    try {
+      projectsList = JSON.parse(localData);
+    } catch (e) {
+      console.error('Error parsing local projects:', e);
+      projectsList = [];
+    }
+  } else {
+    projectsList = [];
+  }
+}
+
+function saveLocalProjects() {
+  localStorage.setItem(LOCAL_PROJECTS_KEY, JSON.stringify(projectsList));
+}
+
+function selectProject(projectId) {
+  const project = projectsList.find(p => p.id === projectId);
+  if (!project) return;
+
+  activeProject = project;
+  localStorage.setItem(ACTIVE_PROJECT_ID_KEY, projectId);
+
+  botNameInput.value = project.bot_name || '';
+  avatarInput.value = project.avatar_url || '';
+  welcomeInput.value = project.welcome_message || '';
+  n8nUrlInput.value = project.n8n_url || '';
+  suggestionsInput.value = project.suggestions || '';
+  positionSelect.value = project.position || 'right';
+
+  activeTheme = project.theme || 'light';
+  themeButtons.forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme') === activeTheme);
+  });
+
+  activeColor = project.color || '#6366f1';
+  colorPicker.value = activeColor;
+  colorHexText.textContent = activeColor.toUpperCase();
+  
+  presetDots.forEach(dot => {
+    const dotColor = dot.getAttribute('data-color');
+    dot.classList.toggle('active', dotColor.toLowerCase() === activeColor.toLowerCase());
+  });
+
+  renderProjectsSelector();
+  updateWidget();
+
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab && activeTab.getAttribute('data-tab') === 'projects') {
+    renderProjectsGrid();
+  }
+}
+
+async function saveActiveProject() {
+  if (!activeProject) return;
+
+  setSyncStatus('saving');
+
+  activeProject.bot_name = botNameInput.value.trim() || 'KartaBot';
+  activeProject.avatar_url = avatarInput.value.trim();
+  activeProject.welcome_message = welcomeInput.value.trim() || 'Hello! How can I help you today?';
+  activeProject.n8n_url = n8nUrlInput.value.trim();
+  activeProject.suggestions = suggestionsInput.value.trim();
+  activeProject.color = activeColor;
+  activeProject.theme = activeTheme;
+  activeProject.position = positionSelect.value;
+
+  try {
+    if (isSupabaseConnected && supabaseClient) {
+      const { error } = await supabaseClient
+        .from('kartabot_projects')
+        .upsert({
+          id: activeProject.id,
+          name: activeProject.name,
+          bot_name: activeProject.bot_name,
+          avatar_url: activeProject.avatar_url,
+          welcome_message: activeProject.welcome_message,
+          n8n_url: activeProject.n8n_url,
+          suggestions: activeProject.suggestions,
+          theme: activeProject.theme,
+          color: activeProject.color,
+          position: activeProject.position,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      setSyncStatus('saved');
+    } else {
+      const idx = projectsList.findIndex(p => p.id === activeProject.id);
+      if (idx !== -1) {
+        projectsList[idx] = { ...activeProject };
+      } else {
+        projectsList.push({ ...activeProject });
+      }
+      saveLocalProjects();
+      setSyncStatus('offline');
+    }
+
+    const activeTab = document.querySelector('.tab-btn.active');
+    if (activeTab && activeTab.getAttribute('data-tab') === 'projects') {
+      renderProjectsGrid();
+    }
+  } catch (err) {
+    console.error('Error saving project:', err);
+    setSyncStatus('error');
+  }
+}
+
+async function createNewProjectPrompt() {
+  const name = prompt("Enter a unique Client or Project name (e.g. 'vel gems'):");
+  if (!name || !name.trim()) return;
+
+  const trimmedName = name.trim();
+  
+  if (projectsList.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+    alert("A project with this name already exists.");
+    return;
+  }
+
+  const newProj = {
+    name: trimmedName,
+    bot_name: trimmedName + ' Bot',
+    avatar_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&auto=format&fit=crop&q=80',
+    welcome_message: `Hello! Welcome to ${trimmedName}. How can I help you today? 😊`,
+    n8n_url: '',
+    suggestions: 'What are your services?, Contact info, Tell me about pricing',
+    theme: 'light',
+    color: '#6366f1',
+    position: 'right'
+  };
+
+  if (!isSupabaseConnected) {
+    newProj.id = 'local-' + Date.now();
+  }
+
+  setSyncStatus('saving');
+
+  try {
+    if (isSupabaseConnected && supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('kartabot_projects')
+        .insert(newProj)
+        .select();
+
+      if (error) throw error;
+      
+      const createdProject = data[0];
+      projectsList.push(createdProject);
+      projectsList.sort((a, b) => a.name.localeCompare(b.name));
+      selectProject(createdProject.id);
+      setSyncStatus('saved');
+    } else {
+      projectsList.push(newProj);
+      projectsList.sort((a, b) => a.name.localeCompare(b.name));
+      saveLocalProjects();
+      selectProject(newProj.id);
+      setSyncStatus('offline');
+    }
+  } catch (err) {
+    console.error('Error creating project:', err);
+    alert('Failed to create project in database: ' + err.message);
+    setSyncStatus('error');
+  }
+}
+
+async function deleteProject(projectId) {
+  const project = projectsList.find(p => p.id === projectId);
+  if (!project) return;
+
+  if (!confirm(`Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  setSyncStatus('saving');
+
+  try {
+    if (isSupabaseConnected && supabaseClient) {
+      const { error } = await supabaseClient
+        .from('kartabot_projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+      setSyncStatus('saved');
+    }
+
+    projectsList = projectsList.filter(p => p.id !== projectId);
+    if (!isSupabaseConnected) {
+      saveLocalProjects();
+    }
+
+    if (activeProject && activeProject.id === projectId) {
+      activeProject = null;
+      if (projectsList.length > 0) {
+        selectProject(projectsList[0].id);
+      } else {
+        clearFormFields();
+        localStorage.removeItem(ACTIVE_PROJECT_ID_KEY);
+        renderProjectsSelector();
+      }
+    } else {
+      renderProjectsSelector();
+    }
+
+    renderProjectsGrid();
+
+  } catch (err) {
+    console.error('Error deleting project:', err);
+    alert('Failed to delete project: ' + err.message);
+    setSyncStatus('error');
+  }
+}
+
+function renderProjectsSelector() {
+  const selectEl = document.getElementById('select-project');
+  if (!selectEl) return;
+
+  selectEl.innerHTML = '';
+  
+  projectsList.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (activeProject && activeProject.id === p.id) {
+      opt.selected = true;
+    }
+    selectEl.appendChild(opt);
+  });
+
+  const separator = document.createElement('option');
+  separator.disabled = true;
+  separator.textContent = '────────────────';
+  selectEl.appendChild(separator);
+
+  const optNew = document.createElement('option');
+  optNew.value = '__new_project__';
+  optNew.textContent = '+ Create New Project...';
+  selectEl.appendChild(optNew);
+}
+
+function renderProjectsGrid() {
+  const gridEl = document.getElementById('projects-grid');
+  const emptyStateEl = document.getElementById('projects-empty-state');
+  if (!gridEl || !emptyStateEl) return;
+
+  if (projectsList.length === 0) {
+    gridEl.innerHTML = '';
+    gridEl.style.display = 'none';
+    emptyStateEl.style.display = 'flex';
+    
+    const emptyDesc = document.getElementById('projects-empty-desc');
+    if (emptyDesc) {
+      emptyDesc.textContent = isSupabaseConnected
+        ? "No client projects exist in your database yet. Click the button below to add your first client!"
+        : "Connect to Supabase to store client configurations in a database, or create local projects in your browser's storage.";
+    }
+    return;
+  }
+
+  gridEl.style.display = 'grid';
+  emptyStateEl.style.display = 'none';
+  gridEl.innerHTML = '';
+
+  projectsList.forEach(p => {
+    const isCurrent = activeProject && activeProject.id === p.id;
+    const card = document.createElement('div');
+    card.className = `project-card ${isCurrent ? 'active-card' : ''}`;
+    
+    card.innerHTML = `
+      <div class="project-card-header">
+        <h4 class="project-card-title" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h4>
+        ${isCurrent ? '<span class="active-badge">Active</span>' : ''}
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-detail-item">
+          <span>Bot Name:</span>
+          <span class="val">${escapeHtml(p.bot_name || 'KartaBot')}</span>
+        </div>
+        <div class="project-card-detail-item">
+          <span>Theme:</span>
+          <span class="val" style="text-transform: capitalize;">${escapeHtml(p.theme || 'light')}</span>
+        </div>
+        <div class="project-card-detail-item">
+          <span>Accent Color:</span>
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span class="color-dot" style="background-color: ${p.color || '#6366f1'};"></span>
+            <code style="font-size: 11px;">${(p.color || '#6366f1').toUpperCase()}</code>
+          </span>
+        </div>
+      </div>
+      <div class="project-card-actions">
+        <button class="btn-card-select" data-id="${p.id}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span>Configure</span>
+        </button>
+        <button class="btn-card-delete" data-id="${p.id}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    `;
+
+    card.querySelector('.btn-card-select').addEventListener('click', () => {
+      selectProject(p.id);
+      const previewTabBtn = document.querySelector('.tab-btn[data-tab="preview"]');
+      if (previewTabBtn) previewTabBtn.click();
+    });
+
+    card.querySelector('.btn-card-delete').addEventListener('click', () => {
+      deleteProject(p.id);
+    });
+
+    gridEl.appendChild(card);
+  });
+}
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('sync-status-dot');
+  const text = document.getElementById('sync-status-text');
+  if (!dot || !text) return;
+
+  dot.className = 'sync-dot';
+
+  switch(status) {
+    case 'saving':
+      dot.classList.add('syncing');
+      text.textContent = 'Saving changes...';
+      break;
+    case 'saved':
+      dot.classList.add('online');
+      text.textContent = 'Saved to Cloud';
+      break;
+    case 'online':
+      dot.classList.add('online');
+      text.textContent = 'Supabase Connected';
+      break;
+    case 'offline':
+      dot.classList.add('offline');
+      text.textContent = 'Local Mode';
+      break;
+    case 'error':
+      dot.classList.add('error');
+      text.textContent = 'Sync Error';
+      break;
+  }
+}
+
+function clearFormFields() {
+  botNameInput.value = '';
+  avatarInput.value = '';
+  welcomeInput.value = '';
+  n8nUrlInput.value = '';
+  suggestionsInput.value = '';
+  positionSelect.value = 'right';
+  activeColor = '#6366f1';
+  activeTheme = 'light';
+  const existingContainer = widgetHost.querySelector('.kartabot-widget-container');
+  if (existingContainer) existingContainer.remove();
+}
+
+function setupModalEvents() {
+  const modal = document.getElementById('supabase-modal');
+  const btnSettings = document.getElementById('btn-db-settings');
+  const btnClose = document.getElementById('btn-close-modal');
+  const btnSave = document.getElementById('btn-save-sb-settings');
+  const btnClear = document.getElementById('btn-clear-sb-settings');
+  const btnCopySql = document.getElementById('btn-copy-sql');
+  const inputUrl = document.getElementById('input-sb-url');
+  const inputKey = document.getElementById('input-sb-key');
+
+  if (!modal) return;
+
+  const openModal = () => {
+    const savedConfig = localStorage.getItem(SUPABASE_CONFIG_KEY);
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        inputUrl.value = config.url || '';
+        inputKey.value = config.key || '';
+      } catch (e) {}
+    } else {
+      inputUrl.value = '';
+      inputKey.value = '';
+    }
+    modal.style.display = 'flex';
+  };
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+  };
+
+  btnSettings.addEventListener('click', openModal);
+  btnClose.addEventListener('click', closeModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  btnSave.addEventListener('click', async () => {
+    const url = inputUrl.value.trim();
+    const key = inputKey.value.trim();
+
+    if (!url || !key) {
+      alert("Please fill in both the Supabase Project URL and Anon Key.");
+      return;
+    }
+
+    btnSave.textContent = 'Connecting...';
+    btnSave.disabled = true;
+
+    try {
+      if (!window.supabase) {
+        throw new Error("Supabase library not loaded. Check internet connection.");
+      }
+      const testClient = window.supabase.createClient(url, key);
+      const { error } = await testClient
+        .from('kartabot_projects')
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        throw new Error("Connected but database query failed. Check if table 'kartabot_projects' exists. Details: " + error.message);
+      }
+
+      localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify({ url, key }));
+      
+      supabaseClient = testClient;
+      isSupabaseConnected = true;
+      setSyncStatus('online');
+
+      await loadProjects();
+      closeModal();
+      alert("Successfully connected to Supabase!");
+
+    } catch (e) {
+      console.error(e);
+      alert("Connection failed: " + e.message);
+    } finally {
+      btnSave.textContent = 'Save & Connect';
+      btnSave.disabled = false;
+    }
+  });
+
+  btnClear.addEventListener('click', async () => {
+    if (confirm("Are you sure you want to disconnect from Supabase and revert to LocalStorage mode?")) {
+      localStorage.removeItem(SUPABASE_CONFIG_KEY);
+      supabaseClient = null;
+      isSupabaseConnected = false;
+      setSyncStatus('offline');
+      closeModal();
+      await loadProjects();
+      alert("Disconnected from Supabase. Switched to Local Mode.");
+    }
+  });
+
+  btnCopySql.addEventListener('click', () => {
+    const sqlCode = document.getElementById('sql-code-block').textContent;
+    navigator.clipboard.writeText(sqlCode).then(() => {
+      const sqlTextSpan = btnCopySql.querySelector('.btn-sql-text') || btnCopySql;
+      sqlTextSpan.textContent = 'Copied!';
+      btnCopySql.classList.add('copied');
+      setTimeout(() => {
+        sqlTextSpan.textContent = 'Copy SQL';
+        btnCopySql.classList.remove('copied');
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+      alert('Failed to copy SQL script to clipboard.');
+    });
+  });
+}
+
+function setupDashboardActions() {
+  const inlineNewProjBtn = document.getElementById('btn-new-project-inline');
+  const newProjBtn = document.getElementById('btn-create-project');
+  const emptyNewProjBtn = document.getElementById('btn-create-project-empty');
+  const emptyConnectSbBtn = document.getElementById('btn-connect-supabase-empty');
+  const projectSelectEl = document.getElementById('select-project');
+
+  if (inlineNewProjBtn) {
+    inlineNewProjBtn.addEventListener('click', createNewProjectPrompt);
+  }
+  if (newProjBtn) {
+    newProjBtn.addEventListener('click', createNewProjectPrompt);
+  }
+  if (emptyNewProjBtn) {
+    emptyNewProjBtn.addEventListener('click', createNewProjectPrompt);
+  }
+  if (emptyConnectSbBtn) {
+    emptyConnectSbBtn.addEventListener('click', () => {
+      const btnDb = document.getElementById('btn-db-settings');
+      if (btnDb) btnDb.click();
+    });
+  }
+
+  if (projectSelectEl) {
+    projectSelectEl.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === '__new_project__') {
+        createNewProjectPrompt();
+      } else {
+        selectProject(val);
+      }
+    });
+  }
 }
 
