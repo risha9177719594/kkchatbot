@@ -1378,3 +1378,15 @@ body {
   color: #ffffff;
 }
 
+/* Help text warning classes */
+.input-help-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.input-help-text.warning {
+  color: #f59e0b;
+}
+
