@@ -154,10 +154,12 @@ function setupEventListeners() {
 
 // Generate Embed Code Text
 function generateSnippetText(config) {
-  // Use the current origin where dashboard is served, falling back to a sample URL
+  // Resolve base path including subfolders (handles GitHub Pages paths like /kkchatbot/)
+  const currentPath = window.location.pathname;
+  const subfolder = currentPath.substring(0, currentPath.lastIndexOf('/'));
   const scriptOrigin = window.location.origin.startsWith('http') 
-    ? window.location.origin 
-    : 'https://cdn.krutrimkarta.com';
+    ? (window.location.origin + subfolder) 
+    : 'https://risha9177719594.github.io/kkchatbot';
 
   if (isSupabaseConnected && activeProject) {
     const isLocal = String(activeProject.id).startsWith('local-');
