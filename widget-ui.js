@@ -959,6 +959,32 @@ window.addEventListener('message', (event) => {
   }
 });
 
+// Helper to combine date and time slot into ISO 8601 offset format (e.g. "2026-07-13T14:30:00.000+02:00")
+function convertDateAndSlotToISO(dateStr, slotStr) {
+  const timePart = slotStr.substring(0, 5);
+  const ampm = slotStr.substring(6).toUpperCase();
+  let [hours, minutes] = timePart.split(':').map(Number);
+  
+  if (ampm === 'PM' && hours < 12) {
+    hours += 12;
+  }
+  if (ampm === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  
+  const formattedHours = String(hours).padStart(2, '0');
+  const formattedMinutes = String(minutes).padStart(2, '0');
+  
+  const offsetMinutes = new Date().getTimezoneOffset();
+  const absOffset = Math.abs(offsetMinutes);
+  const offsetSign = offsetMinutes <= 0 ? '+' : '-';
+  const offsetHours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+  const offsetMins = String(absOffset % 60).padStart(2, '0');
+  const offsetStr = `${offsetSign}${offsetHours}:${offsetMins}`;
+  
+  return `${dateStr}T${formattedHours}:${formattedMinutes}:00.000${offsetStr}`;
+}
+
 // Render interactive Appointment Booking Form Card in chat
 function renderAppointmentFormCard() {
   if (leadFormActive) return; // Share the form active lock to prevent duplicate cards
@@ -1029,12 +1055,13 @@ function renderAppointmentFormCard() {
     const slotVal = form.querySelector('.lead-field-slot').value;
     const notesVal = form.querySelector('.lead-field-notes').value.trim();
     
+    const combinedDateTime = convertDateAndSlotToISO(dateVal, slotVal);
+    
     const appointmentData = {
       id: 'apt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
       name: nameVal,
       email: emailVal,
-      date: dateVal,
-      slot: slotVal,
+      dateTime: combinedDateTime,
       notes: notesVal,
       timestamp: new Date().toISOString(),
       source: 'appointment',
@@ -1072,7 +1099,7 @@ function renderAppointmentFormCard() {
           id: appointmentData.id,
           name: appointmentData.name,
           email: appointmentData.email,
-          phone: `Date: ${appointmentData.date} @ ${appointmentData.slot}`,
+          phone: appointmentData.dateTime,
           timestamp: appointmentData.timestamp,
           botName: appointmentData.botName,
           source: 'Agent Request'
