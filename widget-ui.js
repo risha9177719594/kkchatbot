@@ -312,6 +312,7 @@ function triggerBotResponse(userMessage) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        event: 'message',
         message: userMessage,
         botName: config.botName,
         sessionId: getSessionId(),
