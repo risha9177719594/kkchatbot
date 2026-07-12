@@ -10,7 +10,7 @@ const getCustomSuggestions = () => {
   return [
     "What are your features?",
     "Tell me about pricing",
-    "How do I embed this widget?"
+    "Book an appointment"
   ];
 };
 
@@ -288,11 +288,16 @@ function triggerBotResponse(userMessage) {
   const isPriceQuery = contains(lowerMsg, ['price', 'pricing', 'cost', 'subscription', 'rates', 'plan', 'plans', 'payment', 'charge']);
   const isAgentQuery = contains(lowerMsg, ['agent', 'human', 'support', 'contact', 'representative', 'person', 'live chat', 'talk to agent', 'speak to agent', 'email', 'help']);
   const isGemstoneQuery = contains(lowerMsg, ['gem', 'gemstone', 'gemstones', 'lucky stone', 'astrology stone', 'birthstone', 'recommendation']);
+  const isBookQuery = contains(lowerMsg, ['book', 'appointment', 'schedule', 'booking', 'meet', 'calendar', 'slot']);
   
   let shouldCaptureLead = null;
   let shouldRecommendGemstone = false;
+  let shouldBookAppointment = false;
+
   if (isGemstoneQuery) {
     shouldRecommendGemstone = true;
+  } else if (isBookQuery) {
+    shouldBookAppointment = true;
   } else if (isAgentQuery) {
     shouldCaptureLead = 'agent';
   } else if (isPriceQuery) {
@@ -339,11 +344,15 @@ function triggerBotResponse(userMessage) {
           renderQuickReplies(getSuggestedQuestions(userMessage));
         }, 400);
       }
-
-      // Capture lead or trigger gemstone recommendation form if detected
+ 
+      // Capture lead or trigger gemstone recommendation/appointment form if detected
       if (shouldRecommendGemstone) {
         setTimeout(() => {
           renderGemstoneFormCard();
+        }, 1200);
+      } else if (shouldBookAppointment) {
+        setTimeout(() => {
+          renderAppointmentFormCard();
         }, 1200);
       } else if (shouldCaptureLead) {
         setTimeout(() => {
@@ -376,11 +385,15 @@ function triggerBotResponse(userMessage) {
           renderQuickReplies(freshQuickReplies);
         }
       }, 400);
-
-      // Capture lead or trigger gemstone recommendation form if detected
+ 
+      // Capture lead or trigger gemstone recommendation/appointment form if detected
       if (shouldRecommendGemstone) {
         setTimeout(() => {
           renderGemstoneFormCard();
+        }, 1200);
+      } else if (shouldBookAppointment) {
+        setTimeout(() => {
+          renderAppointmentFormCard();
         }, 1200);
       } else if (shouldCaptureLead) {
         setTimeout(() => {
@@ -415,12 +428,16 @@ function getMockReply(msg) {
     return `Need support? You can reach our friendly human team at support@krutrimkarta.com, or fill out the [Contact Form](#contact). We're always happy to help!`;
   }
   
+  if (contains(text, ['book', 'appointment', 'schedule', 'booking', 'meet', 'calendar', 'slot'])) {
+    return `Sure! I can help you schedule a meeting with our team. Please fill out the **Appointment Booking Form** below to choose your slot:`;
+  }
+  
   if (contains(text, ['thank', 'awesome', 'cool', 'great'])) {
     return `You're very welcome! Let me know if there's anything else I can do for you. 😊`;
   }
   
   // Default Catch-all
-  return `I'm not sure I fully understand that. I am a customizable chatbot template powered by **Krutrim Karta**. Try asking me about my **features**, **pricing**, or **how to embed** this widget on your website!`;
+  return `I'm not sure I fully understand that. I am a customizable chatbot template powered by **Krutrim Karta**. Try asking me about my **features**, **pricing**, or how to **book an appointment**!`;
 }
 
 // Generate contextual quick suggestion questions
@@ -429,7 +446,7 @@ function getSuggestedQuestions(lastUserMessage) {
   const defaultSuggestions = [
     "What are your features?",
     "Tell me about pricing",
-    "How do I embed this widget?"
+    "Book an appointment"
   ];
   const isCustomized = JSON.stringify(config.quickReplies.map(s => s.trim())) !== JSON.stringify(defaultSuggestions);
   
@@ -439,7 +456,7 @@ function getSuggestedQuestions(lastUserMessage) {
 
   const text = lastUserMessage.toLowerCase();
   if (contains(text, ['hi', 'hello', 'hey'])) {
-    return ["What are your features?", "Tell me about pricing"];
+    return ["What are your features?", "Book an appointment"];
   }
   if (contains(text, ['price', 'pricing', 'cost'])) {
     return ["Can I try it for free?", "How do I embed it?"];
@@ -940,4 +957,171 @@ window.addEventListener('message', (event) => {
     }, 150);
   }
 });
+
+// Render interactive Appointment Booking Form Card in chat
+function renderAppointmentFormCard() {
+  if (leadFormActive) return; // Share the form active lock to prevent duplicate cards
+  leadFormActive = true;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = 'message bot';
+  
+  const avatarHtml = `<img class="message-avatar-small" src="${config.avatarUrl}" alt="${config.botName}">`;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  const introText = "Please select your preferred date and time slot below to schedule your appointment:";
+  const formId = `appointment-form-${Date.now()}`;
+
+  // Get tomorrow's date to set min date (so they can only book tomorrow onwards)
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDateStr = tomorrow.toISOString().split('T')[0];
+
+  messageEl.innerHTML = `
+    ${avatarHtml}
+    <div class="message-bubble-wrapper" style="width: 100%; max-width: 300px;">
+      <div class="lead-form-card">
+        <h4>📅 Book Appointment</h4>
+        <p>${introText}</p>
+        <form id="${formId}" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="lead-input-group">
+            <input type="text" class="lead-field-name" placeholder="Full Name" required autocomplete="name">
+          </div>
+          <div class="lead-input-group">
+            <input type="email" class="lead-field-email" placeholder="Email Address" required autocomplete="email">
+          </div>
+          <div class="lead-input-group">
+            <label>Select Date</label>
+            <input type="date" class="lead-field-date" required min="${minDateStr}">
+          </div>
+          <div class="lead-input-group">
+            <label>Preferred Time Slot</label>
+            <select class="lead-field-slot" required>
+              <option value="">Choose a slot...</option>
+              <option value="09:00 AM">09:00 AM</option>
+              <option value="10:30 AM">10:30 AM</option>
+              <option value="01:00 PM">01:00 PM</option>
+              <option value="02:30 PM">02:30 PM</option>
+              <option value="04:00 PM">04:00 PM</option>
+            </select>
+          </div>
+          <div class="lead-input-group">
+            <textarea class="lead-field-notes" placeholder="Meeting purpose or notes..." rows="2" style="width: 100%; box-sizing: border-box; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px; color: var(--text-color); font-family: inherit; font-size: 13px; resize: none;"></textarea>
+          </div>
+          <button type="submit" class="lead-submit-btn">Schedule Meeting</button>
+        </form>
+      </div>
+      <span class="message-time">${time}</span>
+    </div>
+  `;
+  
+  messagesList.appendChild(messageEl);
+  scrollToBottom();
+
+  const form = document.getElementById(formId);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const nameVal = form.querySelector('.lead-field-name').value.trim();
+    const emailVal = form.querySelector('.lead-field-email').value.trim();
+    const dateVal = form.querySelector('.lead-field-date').value;
+    const slotVal = form.querySelector('.lead-field-slot').value;
+    const notesVal = form.querySelector('.lead-field-notes').value.trim();
+    
+    const appointmentData = {
+      id: 'apt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+      name: nameVal,
+      email: emailVal,
+      date: dateVal,
+      slot: slotVal,
+      notes: notesVal,
+      timestamp: new Date().toISOString(),
+      source: 'appointment',
+      botName: config.botName
+    };
+    
+    form.querySelectorAll('input, select, textarea').forEach(input => input.disabled = true);
+    const submitBtn = form.querySelector('.lead-submit-btn');
+    submitBtn.textContent = 'Scheduling...';
+    submitBtn.disabled = true;
+
+    // Send payload back to Cloudflare/n8n
+    let postPromise = Promise.resolve();
+    if (config.n8nUrl) {
+      postPromise = fetch(config.n8nUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event: 'appointment_booking',
+          appointment: appointmentData,
+          sessionId: getSessionId(),
+          timestamp: new Date().toISOString(),
+          projectId: config.projectId
+        })
+      });
+    }
+
+    // Try posting message to parent dashboard
+    try {
+      window.parent.postMessage({
+        type: 'kartabot-lead-captured',
+        lead: {
+          id: appointmentData.id,
+          name: appointmentData.name,
+          email: appointmentData.email,
+          phone: `Date: ${appointmentData.date} @ ${appointmentData.slot}`,
+          timestamp: appointmentData.timestamp,
+          botName: appointmentData.botName,
+          source: 'Agent Request'
+        }
+      }, '*');
+    } catch (err) {
+      console.error("Failed to postMessage appointment data to parent window", err);
+    }
+
+    postPromise
+      .then(response => {
+        if (response && response.ok) {
+          return response.json();
+        }
+        return null;
+      })
+      .then(data => {
+        leadFormActive = false;
+        
+        let responseText = `Thank you, **${escapeHtml(nameVal)}**. Your appointment on **${escapeHtml(dateVal)}** at **${escapeHtml(slotVal)}** has been requested! You will receive an email confirmation shortly.`;
+        
+        if (data) {
+          const customReply = extractText(data);
+          if (customReply) responseText = customReply;
+        }
+
+        const formCard = form.closest('.lead-form-card');
+        formCard.innerHTML = `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="width: 48px; height: 48px; background: rgba(34, 197, 94, 0.1); color: #22c55e; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 20px;">✓</div>
+            <h4 style="margin-bottom: 4px; color: var(--header-text);">Appointment Requested</h4>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4; margin: 0;">${responseText}</p>
+          </div>
+        `;
+        scrollToBottom();
+      })
+      .catch(error => {
+        console.error("Failed to post appointment booking request to webhook:", error);
+        leadFormActive = false;
+        
+        const formCard = form.closest('.lead-form-card');
+        formCard.innerHTML = `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="width: 48px; height: 48px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto; font-size: 20px;">!</div>
+            <h4 style="margin-bottom: 4px; color: var(--header-text);">Booking offline</h4>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4; margin: 0;">We recorded your request for **${escapeHtml(dateVal)}** at **${escapeHtml(slotVal)}** locally, but couldn't reach the calendar server. We will contact you at **${escapeHtml(emailVal)}** to confirm!</p>
+          </div>
+        `;
+        scrollToBottom();
+      });
+  });
+}
 
