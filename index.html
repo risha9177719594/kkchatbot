@@ -159,6 +159,9 @@
             <button class="tab-btn" data-tab="projects">
               Clients & Projects
             </button>
+            <button class="tab-btn" data-tab="wiki">
+              Developer Wiki
+            </button>
           </div>
         </div>
       </header>
@@ -322,6 +325,129 @@
             <div class="empty-state-actions">
               <button id="btn-create-project-empty" class="btn-create-project">Create Project</button>
               <button id="btn-connect-supabase-empty" class="btn-connect-supabase">Connect Supabase</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Developer Wiki -->
+      <div class="tab-content hidden" id="tab-wiki">
+        <div class="wiki-dashboard">
+          <div class="wiki-header">
+            <h3>Developer & Integration Guide</h3>
+            <p>Onboarding resource for configuring client chatbots, webhook routers, n8n orchestrators, and CRM synchronization.</p>
+          </div>
+          
+          <div class="wiki-body">
+            <div class="wiki-navigation">
+              <a href="#wiki-arch" class="wiki-nav-link active">1. System Architecture</a>
+              <a href="#wiki-projects" class="wiki-nav-link">2. Client Projects</a>
+              <a href="#wiki-routing" class="wiki-nav-link">3. Webhook Routing</a>
+              <a href="#wiki-n8n" class="wiki-nav-link">4. n8n Configuration</a>
+              <a href="#wiki-crm" class="wiki-nav-link">5. CRM Sync Setup</a>
+              <a href="#wiki-leads" class="wiki-nav-link">6. Lead Capture Path</a>
+              <a href="#wiki-versioning" class="wiki-nav-link">7. Version History</a>
+            </div>
+            
+            <div class="wiki-content-area">
+              <section id="wiki-arch" class="wiki-section">
+                <h4>1. System Architecture Flow</h4>
+                <p>WebsiteBot runs on a highly decoupled architecture. The frontend widget never communicates with databases or n8n directly, keeping API keys, secrets, and private webhook endpoints safe from client-side visibility.</p>
+                
+                <div class="arch-flow-diagram">
+                  <div class="flow-box">
+                    <span class="flow-title">1. Embedded Widget</span>
+                    <span class="flow-desc">Loads on client site and queries Worker with unique Project UUID.</span>
+                  </div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box">
+                    <span class="flow-title">2. Cloudflare Router</span>
+                    <span class="flow-desc">Fetches styling & routes messages using Supabase metadata.</span>
+                  </div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box">
+                    <span class="flow-title">3. n8n Orchestrator</span>
+                    <span class="flow-desc">Triggers LLM agent, executes catalog searches, or maps to CRM.</span>
+                  </div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box">
+                    <span class="flow-title">4. Client CRM</span>
+                    <span class="flow-desc">Salesforce or HubSpot stores the captured lead data.</span>
+                  </div>
+                </div>
+              </section>
+              
+              <section id="wiki-projects" class="wiki-section" style="display: none;">
+                <h4>2. Client Project Modes</h4>
+                <p>Clients and configurations can be run in two execution scopes:</p>
+                <ul>
+                  <li><strong>Local Mode (LocalStorage Playground)</strong>: Changes are stored in browser storage. Generates static integration snippets that have styling attributes hardcoded inline.</li>
+                  <li><strong>Cloud Mode (Supabase Connected)</strong>: Changes save automatically to Supabase. Generates a dynamic integration snippet containing only a <code>data-project-id</code> UUID. Updates made in this console take effect on live sites immediately.</li>
+                </ul>
+              </section>
+              
+              <section id="wiki-routing" class="wiki-section" style="display: none;">
+                <h4>3. Webhook Router (Cloudflare Worker)</h4>
+                <p>The global routing endpoint <code>https://api.krutrimkarta.com/chat</code> acts as a secure proxy:</p>
+                <div class="wiki-code-block">
+                  <pre><code>GET /chat?projectId={UUID}  ➔ Fetches styling from Supabase
+POST /chat                  ➔ Resolves private n8n URL and forwards payload</code></pre>
+                </div>
+                <p>This allows your clients to move hosting or redeploy workflows without ever modifying the embed code pasted on their website.</p>
+              </section>
+              
+              <section id="wiki-n8n" class="wiki-section" style="display: none;">
+                <h4>4. n8n Pipeline Setup</h4>
+                <p>To integrate an n8n workflow as the chat brain:</p>
+                <ol>
+                  <li>Create a <strong>Webhook node</strong> listening to POST requests (copy this URL to the client's Webhook input in the dashboard).</li>
+                  <li>Create a <strong>Supabase node</strong> to query configuration columns matching the incoming <code>projectId</code> (e.g. loads <code>system_prompt_extension</code>, <code>integrations</code>).</li>
+                  <li>Create an <strong>AI Agent Node</strong> with your language model, appending the dynamic prompt extension from Supabase.</li>
+                </ol>
+              </section>
+              
+              <section id="wiki-crm" class="wiki-section" style="display: none;">
+                <h4>5. CRM Sync (HubSpot / Salesforce)</h4>
+                <p>Avoid hardcoding API keys in n8n workflows. Store access details dynamically in Supabase:</p>
+                <ol>
+                  <li>Under the client's database row, write details in the <code>integrations</code> cell:
+                    <div class="wiki-code-block">
+                      <pre><code>{
+  "crm": "hubspot",
+  "crm_token": "pat-na1-xxxx-xxxx"
+}</code></pre>
+                    </div>
+                  </li>
+                  <li>In your n8n workflow, route requests based on the resolved <code>integrations.crm</code> value.</li>
+                  <li>Bind the CRM node auth tokens using the dynamic property expression: <code>{{ $json.integrations.crm_token }}</code>.</li>
+                </ol>
+              </section>
+              
+              <section id="wiki-leads" class="wiki-section" style="display: none;">
+                <h4>6. Lead Capture Data Path</h4>
+                <p>Websitebot does not log or persist customer lead data in its central database in production. Captures run on a strict privacy route:</p>
+                <div class="arch-flow-diagram">
+                  <div class="flow-box">Widget Iframe Form</div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box">Cloudflare Worker</div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box">n8n Pipeline</div>
+                  <div class="flow-arrow">➔</div>
+                  <div class="flow-box text-highlight">Client CRM Account</div>
+                </div>
+                <p class="rls-note">This isolation ensures customer privacy and guarantees that all contacts sit directly and exclusively in the client's CRM.</p>
+              </section>
+              
+              <section id="wiki-versioning" class="wiki-section" style="display: none;">
+                <h4>7. Configuration Versions & Rollbacks</h4>
+                <p>To audit changes and recover from accidental configuration mistakes, WebsiteBot includes version tracking:</p>
+                <ul>
+                  <li><strong>Automatic Snapshot</strong>: Edits trigger a snapshot of the old configuration state inside <code>project_config_versions</code> before overwriting it.</li>
+                  <li><strong>60s Coalescing</strong>: To avoid database pollution during active customization (e.g. typing or color selecting), a new snapshot is logged only if at least 60 seconds have elapsed since the last log.</li>
+                  <li><strong>Retention Limit</strong>: History is capped at the <strong>5 most recent versions</strong> per project.</li>
+                  <li><strong>Reversible Restore</strong>: Restoring a past version automatically saves the pre-restore state as a new entry, allowing you to undo rollbacks.</li>
+                </ul>
+              </section>
             </div>
           </div>
         </div>

@@ -1620,3 +1620,159 @@ body {
   padding: 12px 0;
 }
 
+/* ==========================================
+   Wiki Documentation Tab Pane Styles
+   ========================================== */
+
+.wiki-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  gap: 16px;
+  overflow: hidden;
+}
+
+.wiki-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.wiki-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.wiki-header p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wiki-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 20px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.wiki-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--border-color);
+  padding-right: 16px;
+  overflow-y: auto;
+}
+
+.wiki-nav-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.wiki-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  color: #ffffff;
+}
+
+.wiki-nav-link.active {
+  background-color: rgba(99, 102, 241, 0.08);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.wiki-content-area {
+  padding: 0 12px 24px 12px;
+  overflow-y: auto;
+  text-align: left;
+  line-height: 1.6;
+}
+
+.wiki-section h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 12px;
+}
+
+.wiki-section p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.wiki-section ul, .wiki-section ol {
+  padding-left: 20px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.wiki-section li {
+  margin-bottom: 8px;
+}
+
+.wiki-code-block {
+  background-color: rgba(31, 41, 55, 0.3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #34d399;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+
+/* Styled Block Diagram for Architecture */
+.arch-flow-diagram {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.flow-box {
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flow-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.flow-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.flow-arrow {
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.text-highlight {
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+

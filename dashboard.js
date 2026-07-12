@@ -59,6 +59,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setupModalEvents();
   setupVersionHistoryEvents();
+  setupWikiNavigation();
   setupDashboardActions();
   await initDatabase();
   await loadProjects();
@@ -1361,5 +1362,27 @@ function setupVersionHistoryEvents() {
   });
 
   btnRestore.addEventListener('click', restoreSelectedVersion);
+}
+
+// Wiki Tab Navigation show/hide section handler
+function setupWikiNavigation() {
+  const links = document.querySelectorAll('.wiki-nav-link');
+  const sections = document.querySelectorAll('.wiki-section');
+
+  links.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      // Update active nav link
+      links.forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+
+      // Hide all sections and show selected
+      const targetId = link.getAttribute('href').substring(1);
+      sections.forEach(sec => {
+        sec.style.display = (sec.id === targetId) ? 'block' : 'none';
+      });
+    });
+  });
 }
 
