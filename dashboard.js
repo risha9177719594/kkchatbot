@@ -32,11 +32,14 @@ let supabaseClient = null;
 let isSupabaseConnected = false;
 let projectsList = [];
 let activeProject = null;
+let activeVersionList = [];
+let selectedVersion = null;
 
 // Local fallback defaults
 const LOCAL_PROJECTS_KEY = 'kartabot_local_projects';
 const ACTIVE_PROJECT_ID_KEY = 'kartabot_active_project_id';
 const SUPABASE_CONFIG_KEY = 'kartabot_supabase_config';
+const LOCAL_PROJECT_VERSIONS_KEY = 'kartabot_local_project_versions';
 
 const defaultProject = {
   id: 'local-default',
@@ -55,6 +58,7 @@ const defaultProject = {
 window.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setupModalEvents();
+  setupVersionHistoryEvents();
   setupDashboardActions();
   await initDatabase();
   await loadProjects();
@@ -599,6 +603,9 @@ async function saveActiveProject() {
 
   setSyncStatus('saving');
 
+  // Keep a copy of the previous state for Local Mode version logging
+  const oldActiveConfig = isSupabaseConnected ? null : JSON.parse(JSON.stringify(activeProject));
+
   activeProject.bot_name = botNameInput.value.trim() || 'KartaBot';
   activeProject.avatar_url = avatarInput.value.trim();
   activeProject.welcome_message = welcomeInput.value.trim() || 'Hello! How can I help you today?';
@@ -631,6 +638,7 @@ async function saveActiveProject() {
     } else {
       const idx = projectsList.findIndex(p => p.id === activeProject.id);
       if (idx !== -1) {
+        logLocalProjectVersion(oldActiveConfig, activeProject);
         projectsList[idx] = { ...activeProject };
       } else {
         projectsList.push({ ...activeProject });
@@ -1051,5 +1059,307 @@ function setupDashboardActions() {
       }
     });
   }
+}
+
+// Log a local version snapshot on config edit if > 60s since last snapshot
+function logLocalProjectVersion(oldProj, newProj) {
+  if (!oldProj) return;
+
+  const oldConf = {
+    bot_name: oldProj.bot_name,
+    avatar_url: oldProj.avatar_url,
+    welcome_message: oldProj.welcome_message,
+    n8n_url: oldProj.n8n_url,
+    suggestions: oldProj.suggestions,
+    theme: oldProj.theme,
+    color: oldProj.color,
+    position: oldProj.position
+  };
+
+  const newConf = {
+    bot_name: newProj.bot_name,
+    avatar_url: newProj.avatar_url,
+    welcome_message: newProj.welcome_message,
+    n8n_url: newProj.n8n_url,
+    suggestions: newProj.suggestions,
+    theme: newProj.theme,
+    color: newProj.color,
+    position: newProj.position
+  };
+
+  // Check if configuration fields actually differ
+  const hasChanges = Object.keys(oldConf).some(key => oldConf[key] !== newConf[key]);
+  if (!hasChanges) return;
+
+  const storageKey = `${LOCAL_PROJECT_VERSIONS_KEY}_${oldProj.id}`;
+  let versions = [];
+  try {
+    const data = localStorage.getItem(storageKey);
+    versions = data ? JSON.parse(data) : [];
+  } catch (e) {
+    console.error('Error loading local versions:', e);
+  }
+
+  const lastVersion = versions[0]; // Newest is at index 0
+  const now = Date.now();
+  const lastTime = lastVersion ? new Date(lastVersion.created_at).getTime() : 0;
+
+  // Coalesce: Only write version if > 60s since the last snapshot
+  if (!lastVersion || (now - lastTime > 60000)) {
+    const nextVer = lastVersion ? lastVersion.version_number + 1 : 1;
+    const newVersionLog = {
+      id: 'local-ver-' + now,
+      project_id: oldProj.id,
+      version_number: nextVer,
+      config: oldConf,
+      created_at: new Date().toISOString()
+    };
+
+    versions.unshift(newVersionLog); // Add to beginning (newest first)
+
+    // Keep only most recent 50 versions
+    if (versions.length > 50) {
+      versions = versions.slice(0, 50);
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify(versions));
+  }
+}
+
+// Fetch and open Version History Modal
+async function openVersionHistoryModal() {
+  if (!activeProject) {
+    alert("Please select a project first.");
+    return;
+  }
+
+  document.getElementById('history-project-name').textContent = activeProject.name;
+  
+  // Clear details panel
+  document.getElementById('version-details-empty-state').style.display = 'flex';
+  document.getElementById('version-details-content-panel').style.display = 'none';
+
+  // Load versions list
+  const container = document.getElementById('versions-list-container');
+  container.innerHTML = '<p class="modal-desc" style="text-align: center; padding: 20px 0;">Loading history...</p>';
+
+  document.getElementById('version-history-modal').style.display = 'flex';
+
+  try {
+    if (isSupabaseConnected && supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('project_config_versions')
+        .select('*')
+        .eq('project_id', activeProject.id)
+        .order('version_number', { ascending: false });
+
+      if (error) throw error;
+      activeVersionList = data || [];
+    } else {
+      const storageKey = `${LOCAL_PROJECT_VERSIONS_KEY}_${activeProject.id}`;
+      const localData = localStorage.getItem(storageKey);
+      activeVersionList = localData ? JSON.parse(localData) : [];
+    }
+
+    renderVersionsList();
+  } catch (err) {
+    console.error('Error fetching version history:', err);
+    container.innerHTML = '<p class="modal-desc" style="text-align: center; color: #ef4444; padding: 20px 0;">Failed to load history.</p>';
+  }
+}
+
+// Render left sidebar version item buttons
+function renderVersionsList() {
+  const container = document.getElementById('versions-list-container');
+  container.innerHTML = '';
+
+  if (activeVersionList.length === 0) {
+    container.innerHTML = '<p class="modal-desc" style="text-align: center; padding: 20px 0;">No versions found.</p>';
+    return;
+  }
+
+  activeVersionList.forEach((v, index) => {
+    const item = document.createElement('div');
+    item.className = 'version-item';
+    item.setAttribute('data-id', v.id);
+
+    const formattedDate = new Date(v.created_at).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    item.innerHTML = `
+      <div class="version-item-header">
+        <span class="version-item-title">Version ${v.version_number}</span>
+        <span class="version-item-badge">v${v.version_number}</span>
+      </div>
+      <span class="version-item-time">${formattedDate}</span>
+    `;
+
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.version-item').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+      selectVersionDetails(v, index);
+    });
+
+    container.appendChild(item);
+  });
+}
+
+// Compute diffs and display right panel version details
+function selectVersionDetails(v, index) {
+  selectedVersion = v;
+
+  document.getElementById('version-details-empty-state').style.display = 'none';
+  const contentPanel = document.getElementById('version-details-content-panel');
+  contentPanel.style.display = 'flex';
+
+  document.getElementById('details-version-title').textContent = `Version ${v.version_number}`;
+  
+  const formattedDate = new Date(v.created_at).toLocaleString([], {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  document.getElementById('details-version-time').textContent = formattedDate;
+
+  // Build readable diff
+  const diffList = document.getElementById('diff-fields-list');
+  diffList.innerHTML = '';
+
+  const propertyLabels = {
+    bot_name: 'Bot Name',
+    avatar_url: 'Avatar URL',
+    welcome_message: 'Welcome Message',
+    n8n_url: 'n8n Webhook URL',
+    suggestions: 'Suggested Questions',
+    theme: 'Theme',
+    color: 'Accent Color',
+    position: 'Launcher Position'
+  };
+
+  const oldConf = v.config;
+  const newConf = (index === 0) 
+    ? {
+        bot_name: activeProject.bot_name,
+        avatar_url: activeProject.avatar_url,
+        welcome_message: activeProject.welcome_message,
+        n8n_url: activeProject.n8n_url,
+        suggestions: activeProject.suggestions,
+        theme: activeProject.theme,
+        color: activeProject.color,
+        position: activeProject.position
+      }
+    : activeVersionList[index - 1].config;
+
+  let changesCount = 0;
+
+  Object.keys(propertyLabels).forEach(key => {
+    const oldVal = oldConf[key] || '';
+    const newVal = newConf[key] || '';
+
+    if (oldVal !== newVal) {
+      changesCount++;
+      const diffItem = document.createElement('div');
+      diffItem.className = 'diff-field-item';
+
+      diffItem.innerHTML = `
+        <span class="diff-field-name">${propertyLabels[key]}</span>
+        <div class="diff-field-change">
+          <span class="diff-removed">${escapeHtml(oldVal || '[empty]')}</span>
+          <span class="diff-arrow">➔</span>
+          <span class="diff-added">${escapeHtml(newVal || '[empty]')}</span>
+        </div>
+      `;
+      diffList.appendChild(diffItem);
+    }
+  });
+
+  if (changesCount === 0) {
+    diffList.innerHTML = '<p class="no-changes-label">No configuration differences detected vs. the subsequent state.</p>';
+  }
+}
+
+// Restore selected version configuration
+async function restoreSelectedVersion() {
+  if (!selectedVersion || !activeProject) return;
+
+  if (!confirm(`Restore Version ${selectedVersion.version_number}? This will overwrite your current settings, but a snapshot of your current settings will be logged in history so you can undo.`)) {
+    return;
+  }
+
+  const btn = document.getElementById('btn-restore-version');
+  const originalText = btn.textContent;
+  btn.textContent = 'Restoring...';
+  btn.disabled = true;
+
+  try {
+    const configToRestore = selectedVersion.config;
+
+    // Populate the form fields with the restored values
+    botNameInput.value = configToRestore.bot_name || '';
+    avatarInput.value = configToRestore.avatar_url || '';
+    welcomeInput.value = configToRestore.welcome_message || '';
+    n8nUrlInput.value = configToRestore.n8n_url || '';
+    suggestionsInput.value = configToRestore.suggestions || '';
+    positionSelect.value = configToRestore.position || 'right';
+
+    // Update Theme Selection
+    activeTheme = configToRestore.theme || 'light';
+    themeButtons.forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-theme') === activeTheme);
+    });
+
+    // Update Color Selection
+    activeColor = configToRestore.color || '#6366f1';
+    colorPicker.value = activeColor;
+    colorHexText.textContent = activeColor.toUpperCase();
+    
+    presetDots.forEach(dot => {
+      const dotColor = dot.getAttribute('data-color');
+      dot.classList.toggle('active', dotColor.toLowerCase() === activeColor.toLowerCase());
+    });
+
+    // Save restored settings
+    await saveActiveProject();
+
+    document.getElementById('version-history-modal').style.display = 'none';
+    alert(`Successfully restored Version ${selectedVersion.version_number}!`);
+
+  } catch (err) {
+    console.error('Error restoring version:', err);
+    alert('Failed to restore configuration: ' + err.message);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+// Wire up Version History Modal buttons and triggers
+function setupVersionHistoryEvents() {
+  const modal = document.getElementById('version-history-modal');
+  const btnHistory = document.getElementById('btn-version-history');
+  const btnClose = document.getElementById('btn-close-history-modal');
+  const btnRestore = document.getElementById('btn-restore-version');
+
+  if (!modal) return;
+
+  btnHistory.addEventListener('click', openVersionHistoryModal);
+  btnClose.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+
+  btnRestore.addEventListener('click', restoreSelectedVersion);
 }
 

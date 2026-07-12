@@ -44,6 +44,11 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
+            <button type="button" id="btn-version-history" class="action-icon-btn" title="Version History">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
           </div>
         </div>
         <div class="sync-status-bar">
@@ -374,12 +379,138 @@
 );
 
 ALTER TABLE kartabot_projects ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read and write" ON kartabot_projects FOR ALL USING (true) WITH CHECK (true);</code></pre>
+CREATE POLICY "Allow public read and write" ON kartabot_projects FOR ALL USING (true) WITH CHECK (true);
+
+-- Create version history table
+CREATE TABLE IF NOT EXISTS project_config_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES kartabot_projects(id) ON DELETE CASCADE,
+  version_number INT NOT NULL,
+  config JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_config_versions_project_id ON project_config_versions(project_id);
+
+ALTER TABLE project_config_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read and write" ON project_config_versions FOR ALL USING (true) WITH CHECK (true);
+
+-- Trigger function to log old configuration state on update
+CREATE OR REPLACE FUNCTION log_project_config_version()
+RETURNS TRIGGER AS $$
+DECLARE
+  next_ver INT;
+  last_created TIMESTAMP WITH TIME ZONE;
+  old_conf JSONB;
+  new_conf JSONB;
+BEGIN
+  old_conf := jsonb_build_object(
+    'bot_name', OLD.bot_name,
+    'avatar_url', OLD.avatar_url,
+    'welcome_message', OLD.welcome_message,
+    'n8n_url', OLD.n8n_url,
+    'suggestions', OLD.suggestions,
+    'theme', OLD.theme,
+    'color', OLD.color,
+    'position', OLD.position
+  );
+
+  new_conf := jsonb_build_object(
+    'bot_name', NEW.bot_name,
+    'avatar_url', NEW.avatar_url,
+    'welcome_message', NEW.welcome_message,
+    'n8n_url', NEW.n8n_url,
+    'suggestions', NEW.suggestions,
+    'theme', NEW.theme,
+    'color', NEW.color,
+    'position', NEW.position
+  );
+
+  IF old_conf IS DISTINCT FROM new_conf THEN
+    SELECT max(created_at) INTO last_created 
+    FROM project_config_versions 
+    WHERE project_id = OLD.id;
+
+    -- Coalesce version logging (only record if > 60s since last version)
+    IF last_created IS NULL OR (EXTRACT(EPOCH FROM (now() - last_created)) > 60) THEN
+      SELECT COALESCE(max(version_number), 0) + 1 INTO next_ver 
+      FROM project_config_versions 
+      WHERE project_id = OLD.id;
+
+      INSERT INTO project_config_versions (project_id, version_number, config, created_at)
+      VALUES (OLD.id, next_ver, old_conf, now());
+
+      -- Retention Policy: Cap versions at 50 per project
+      DELETE FROM project_config_versions
+      WHERE id IN (
+        SELECT id FROM project_config_versions
+        WHERE project_id = OLD.id
+        ORDER BY version_number DESC
+        OFFSET 50
+      );
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_log_project_config_version ON kartabot_projects;
+CREATE TRIGGER trg_log_project_config_version
+BEFORE UPDATE ON kartabot_projects
+FOR EACH ROW
+EXECUTE FUNCTION log_project_config_version();</code></pre>
             <button id="btn-copy-sql" aria-label="Copy SQL">
               <span class="btn-sql-text">Copy SQL</span>
             </button>
           </div>
           <p class="rls-note">Ensure Row Level Security (RLS) is configured to allow public reads and writes as defined by the policy above for testing.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Version History Modal Overlay -->
+  <div class="modal-overlay" id="version-history-modal" style="display: none;">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h2>Version History - <span id="history-project-name">Project</span></h2>
+        <button class="modal-close" id="btn-close-history-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">View and restore past chatbot configurations. Restores are non-destructive and save the previous state as a new version.</p>
+        
+        <div class="history-layout">
+          <div class="versions-sidebar">
+            <div class="versions-list" id="versions-list-container">
+              <!-- Versions will be loaded here dynamically -->
+            </div>
+          </div>
+          
+          <div class="version-details-panel">
+            <div class="version-details-empty" id="version-details-empty-state">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p>Select a version from the list to view configuration changes and restore it.</p>
+            </div>
+            
+            <div class="version-details-content" id="version-details-content-panel" style="display: none;">
+              <div class="version-details-header">
+                <div>
+                  <h3 id="details-version-title">Version 1</h3>
+                  <span class="version-time-badge" id="details-version-time">timestamp</span>
+                </div>
+                <button type="button" id="btn-restore-version" class="btn-primary-modal btn-restore-action">Restore This Version</button>
+              </div>
+              <div class="version-diff-container">
+                <h4>Changes vs. Previous State</h4>
+                <div class="diff-fields-list" id="diff-fields-list">
+                  <!-- Diff properties will be injected dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

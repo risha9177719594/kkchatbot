@@ -1390,3 +1390,233 @@ body {
   color: #f59e0b;
 }
 
+/* ==========================================
+   Version History Modal & Diff Layout Styles
+   ========================================== */
+
+/* Wider Modal for Version History Layout */
+.modal-card-wide {
+  max-width: 840px !important;
+  height: 85vh;
+}
+
+/* Two-Panel Layout */
+.history-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  height: 100%;
+  min-height: 380px;
+  overflow: hidden;
+}
+
+/* Left Sidebar - Versions List */
+.versions-sidebar {
+  border-right: 1px solid var(--border-color);
+  padding-right: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.versions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-item {
+  background-color: rgba(31, 41, 55, 0.2);
+  border: 1px solid var(--border-color);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.version-item:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  background-color: rgba(31, 41, 55, 0.4);
+}
+
+.version-item.active {
+  border-color: var(--primary);
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+.version-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.version-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.version-item-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.version-item.active .version-item-badge {
+  background-color: var(--primary-glow);
+  color: var(--primary);
+}
+
+.version-item-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+}
+
+/* Right Details Panel */
+.version-details-panel {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-left: 8px;
+  height: 100%;
+}
+
+.version-details-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 12px;
+  padding: 40px;
+}
+
+.version-details-empty p {
+  font-size: 13px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.version-details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.version-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.version-details-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.version-time-badge {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-restore-action {
+  flex: none !important;
+  width: auto !important;
+  padding: 8px 16px !important;
+  font-size: 12px !important;
+}
+
+/* Diff Viewer */
+.version-diff-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.version-diff-container h4 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.diff-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.diff-field-item {
+  background-color: rgba(31, 41, 55, 0.15);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff-field-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.diff-field-change {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.diff-removed {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-decoration: line-through;
+  display: inline-block;
+  word-break: break-all;
+}
+
+.diff-arrow {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.diff-added {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  word-break: break-all;
+}
+
+.no-changes-label {
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
