@@ -1,4 +1,4 @@
-(function () {
+(async function () {
   // Retrieve script configuration
   let currentScript = document.currentScript;
   if (!currentScript) {
@@ -25,14 +25,48 @@
   }
 
   // Fallback defaults if no script tag is resolved
-  const botName = currentScript ? (currentScript.getAttribute('data-bot-name') || 'KartaBot') : 'KartaBot';
-  const accentColor = currentScript ? (currentScript.getAttribute('data-color') || '#6366f1') : '#6366f1';
-  const theme = currentScript ? (currentScript.getAttribute('data-theme') || 'light') : 'light';
-  const welcomeMessage = currentScript ? (currentScript.getAttribute('data-welcome') || 'Hello! How can I help you today?') : 'Hello! How can I help you today?';
-  const avatarUrl = currentScript ? (currentScript.getAttribute('data-avatar') || '') : '';
-  const position = currentScript ? (currentScript.getAttribute('data-position') || 'right') : 'right';
-  const n8nUrl = currentScript ? (currentScript.getAttribute('data-n8n-url') || '') : '';
-  const suggestions = currentScript ? (currentScript.getAttribute('data-suggestions') || '') : '';
+  let botName = 'KartaBot';
+  let accentColor = '#6366f1';
+  let theme = 'light';
+  let welcomeMessage = 'Hello! How can I help you today?';
+  let avatarUrl = '';
+  let position = 'right';
+  let n8nUrl = '';
+  let suggestions = '';
+
+  const projectId = currentScript ? currentScript.getAttribute('data-project-id') : null;
+  const apiUrl = currentScript ? (currentScript.getAttribute('data-api-url') || 'https://api.krutrimkarta.com/chat') : 'https://api.krutrimkarta.com/chat';
+
+  if (projectId && !isPreview) {
+    try {
+      const response = await fetch(`${apiUrl}?projectId=${projectId}`);
+      if (response.ok) {
+        const dbConfig = await response.json();
+        botName = dbConfig.bot_name || botName;
+        accentColor = dbConfig.color || accentColor;
+        theme = dbConfig.theme || theme;
+        welcomeMessage = dbConfig.welcome_message || welcomeMessage;
+        avatarUrl = dbConfig.avatar_url || avatarUrl;
+        position = dbConfig.position || position;
+        n8nUrl = apiUrl; // Route messages to Cloudflare Worker
+        suggestions = dbConfig.suggestions || suggestions;
+      } else {
+        console.error('KartaBot: Failed to fetch configuration. Using fallback defaults.');
+      }
+    } catch (e) {
+      console.error('KartaBot: Error fetching configuration.', e);
+    }
+  } else {
+    // Read static configuration from attributes
+    botName = currentScript ? (currentScript.getAttribute('data-bot-name') || botName) : botName;
+    accentColor = currentScript ? (currentScript.getAttribute('data-color') || accentColor) : accentColor;
+    theme = currentScript ? (currentScript.getAttribute('data-theme') || theme) : theme;
+    welcomeMessage = currentScript ? (currentScript.getAttribute('data-welcome') || welcomeMessage) : welcomeMessage;
+    avatarUrl = currentScript ? (currentScript.getAttribute('data-avatar') || avatarUrl) : avatarUrl;
+    position = currentScript ? (currentScript.getAttribute('data-position') || position) : position;
+    n8nUrl = currentScript ? (currentScript.getAttribute('data-n8n-url') || n8nUrl) : n8nUrl;
+    suggestions = currentScript ? (currentScript.getAttribute('data-suggestions') || suggestions) : suggestions;
+  }
 
   // Resolve widget directory to load widget-ui.html relative to this script
   let baseUrl = '';
@@ -62,6 +96,7 @@
   if (avatarUrl) queryParams.set('avatar', avatarUrl);
   if (n8nUrl) queryParams.set('n8nUrl', n8nUrl);
   if (suggestions) queryParams.set('suggestions', suggestions);
+  if (projectId) queryParams.set('projectId', projectId); // Pass project ID to iframe query string
   
   // Add cache-buster to prevent iframe page caching during edits
   queryParams.set('t', new Date().getTime());

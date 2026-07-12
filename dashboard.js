@@ -159,11 +159,27 @@ function generateSnippetText(config) {
     ? window.location.origin 
     : 'https://cdn.krutrimkarta.com';
 
+  if (isSupabaseConnected && activeProject) {
+    const isLocal = String(activeProject.id).startsWith('local-');
+    if (!isLocal) {
+      // Dynamic config script snippet
+      return `<!-- KartaBot Chatbot Widget Integration (Dynamic Cloud Sync) -->
+<script
+  src="${scriptOrigin}/widget.js"
+  id="kartabot-widget-script"
+  data-project-id="${activeProject.id}"
+  data-api-url="https://api.krutrimkarta.com/chat"
+  defer>
+</script>`;
+    }
+  }
+
   const n8nAttr = config.n8nUrl ? `\n  data-n8n-url="${escapeHtml(config.n8nUrl)}"` : '';
   const suggestionsAttr = config.suggestions ? `\n  data-suggestions="${escapeHtml(config.suggestions)}"` : '';
   const avatarAttr = config.avatar ? `\n  data-avatar="${escapeHtml(config.avatar)}"` : '';
 
-  return `<!-- KartaBot Chatbot Widget Integration -->
+  return `<!-- KartaBot Chatbot Widget Integration (Local Static Mode) -->
+<!-- Connect Supabase in settings to get dynamic cloud-synced script -->
 <script
   src="${scriptOrigin}/widget.js"
   id="kartabot-widget-script"
