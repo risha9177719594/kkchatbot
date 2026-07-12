@@ -1117,9 +1117,9 @@ function logLocalProjectVersion(oldProj, newProj) {
 
     versions.unshift(newVersionLog); // Add to beginning (newest first)
 
-    // Keep only most recent 50 versions
-    if (versions.length > 50) {
-      versions = versions.slice(0, 50);
+    // Keep only most recent 5 versions
+    if (versions.length > 5) {
+      versions = versions.slice(0, 5);
     }
 
     localStorage.setItem(storageKey, JSON.stringify(versions));

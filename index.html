@@ -440,13 +440,13 @@ BEGIN
       INSERT INTO project_config_versions (project_id, version_number, config, created_at)
       VALUES (OLD.id, next_ver, old_conf, now());
 
-      -- Retention Policy: Cap versions at 50 per project
+      -- Retention Policy: Cap versions at 5 per project
       DELETE FROM project_config_versions
       WHERE id IN (
         SELECT id FROM project_config_versions
         WHERE project_id = OLD.id
         ORDER BY version_number DESC
-        OFFSET 50
+        OFFSET 5
       );
     END IF;
   END IF;
